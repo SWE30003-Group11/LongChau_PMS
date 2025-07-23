@@ -1,105 +1,93 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Search, Filter, Eye, Download, ArrowUpDown, CheckCircle, XCircle, Clock, FileText, AlertCircle, Activity } from "lucide-react"
 import { motion } from "framer-motion"
-
-// Mock prescriptions data
-const prescriptions = [
-  {
-    id: "RX001",
-    patient: "Nguyen Van A",
-    doctor: "Dr. Tran Van B",
-    date: "2024-06-01",
-    status: "Approved",
-    items: 2,
-    notes: "Take with food.",
-    branch: "District 1",
-  },
-  {
-    id: "RX002",
-    patient: "Le Thi C",
-    doctor: "Dr. Pham Thi D",
-    date: "2024-06-02",
-    status: "Pending",
-    items: 1,
-    notes: "Check allergies.",
-    branch: "District 2",
-  },
-  {
-    id: "RX003",
-    patient: "Tran Van E",
-    doctor: "Dr. Nguyen Van F",
-    date: "2024-06-03",
-    status: "Rejected",
-    items: 3,
-    notes: "Incorrect dosage.",
-    branch: "District 3",
-  },
-  {
-    id: "RX004",
-    patient: "Pham Thi G",
-    doctor: "Dr. Le Van H",
-    date: "2024-06-04",
-    status: "Approved",
-    items: 1,
-    notes: "Monitor blood pressure.",
-    branch: "District 7",
-  },
-  {
-    id: "RX005",
-    patient: "Hoang Van I",
-    doctor: "Dr. Tran Thi J",
-    date: "2024-06-05",
-    status: "Pending",
-    items: 4,
-    notes: "Requires specialist consultation.",
-    branch: "Thu Duc",
-  },
-];
+import { supabase } from "@/lib/supabase/client"
+import { format } from "date-fns"
+import Zoom from 'react-medium-image-zoom';
+import 'react-medium-image-zoom/dist/styles.css';
 
 export default function PrescriptionsPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [activeTab, setActiveTab] = useState("all")
   const [sortField, setSortField] = useState<string | null>(null)
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc")
+  const [prescriptions, setPrescriptions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
+  const [rejectionReason, setRejectionReason] = useState("");
 
-  const handleSort = (field: string) => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === "asc" ? "desc" : "asc")
-    } else {
-      setSortField(field)
-      setSortDirection("asc")
+  useEffect(() => {
+    fetchPrescriptions();
+  }, []);
+
+  async function fetchPrescriptions() {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('prescriptions')
+      .select('*, profiles:profiles!prescriptions_user_id_fkey(full_name)')
+      .order('created_at', { ascending: false });
+    if (error) return setLoading(false);
+    setPrescriptions(data || []);
+    // Generate signed URLs
+    const urlMap: Record<string, string> = {};
+    for (const p of data || []) {
+      const filePath = p.file_path || extractFilePathFromUrl(p.file_url);
+      if (filePath) {
+        const { data: signed } = await supabase.storage.from('prescriptions').createSignedUrl(filePath, 60 * 60);
+        if (signed?.signedUrl) urlMap[p.id] = signed.signedUrl;
+        else urlMap[p.id] = p.file_url;
+      }
     }
+    setSignedUrls(urlMap);
+    setLoading(false);
+  }
+
+  function extractFilePathFromUrl(url: string): string | null {
+    const match = url.match(/prescriptions\/(.+)$/);
+    return match ? match[1] : null;
+  }
+
+  async function handleApprove(id: string) {
+    setReviewingId(id);
+    await supabase.from('prescriptions').update({ status: 'approved', approved_at: new Date().toISOString(), rejection_reason: null }).eq('id', id);
+    setReviewingId(null);
+    fetchPrescriptions();
+  }
+
+  async function handleReject(id: string) {
+    setReviewingId(id);
+    await supabase.from('prescriptions').update({ status: 'rejected', rejection_reason: rejectionReason }).eq('id', id);
+    setReviewingId(null);
+    setRejectionReason("");
+    fetchPrescriptions();
   }
 
   const filteredPrescriptions = prescriptions.filter(
-    (prescription) =>
+    (p) =>
       (activeTab === "all" ||
-        (activeTab === "approved" && prescription.status === "Approved") ||
-        (activeTab === "pending" && prescription.status === "Pending") ||
-        (activeTab === "rejected" && prescription.status === "Rejected")) &&
-      (prescription.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        prescription.patient.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        prescription.doctor.toLowerCase().includes(searchTerm.toLowerCase())),
-  )
+        (activeTab === "approved" && p.status === "approved") ||
+        (activeTab === "pending" && p.status === "pending") ||
+        (activeTab === "rejected" && p.status === "rejected")) &&
+      (p.file_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (p.profiles?.full_name || "").toLowerCase().includes(searchTerm.toLowerCase()))
+  );
 
   const sortedPrescriptions = [...filteredPrescriptions].sort((a, b) => {
-    if (!sortField) return 0
-
-    const fieldA = a[sortField as keyof typeof a]
-    const fieldB = b[sortField as keyof typeof b]
-
+    if (!sortField) return 0;
+    const fieldA = a[sortField];
+    const fieldB = b[sortField];
     if (typeof fieldA === "string" && typeof fieldB === "string") {
-      return sortDirection === "asc" ? fieldA.localeCompare(fieldB) : fieldB.localeCompare(fieldA)
+      return sortDirection === "asc" ? fieldA.localeCompare(fieldB) : fieldB.localeCompare(fieldA);
     }
-
     if (typeof fieldA === "number" && typeof fieldB === "number") {
-      return sortDirection === "asc" ? fieldA - fieldB : fieldB - fieldA
+      return sortDirection === "asc" ? fieldA - fieldB : fieldB - fieldA;
     }
-
-    return 0
-  })
+    return 0;
+  });
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -129,9 +117,9 @@ export default function PrescriptionsPage() {
 
   // Calculate stats
   const totalPrescriptions = prescriptions.length
-  const approvedCount = prescriptions.filter(p => p.status === "Approved").length
-  const pendingCount = prescriptions.filter(p => p.status === "Pending").length
-  const rejectedCount = prescriptions.filter(p => p.status === "Rejected").length
+  const approvedCount = prescriptions.filter(p => p.status === "approved").length
+  const pendingCount = prescriptions.filter(p => p.status === "pending").length
+  const rejectedCount = prescriptions.filter(p => p.status === "rejected").length
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -288,61 +276,41 @@ export default function PrescriptionsPage() {
               <table className="w-full">
                 <thead>
                   <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-100">
-                    <th className="pb-3 pr-6">
-                      <button className="flex items-center gap-1" onClick={() => handleSort("id")}>
-                        Prescription ID
-                        <ArrowUpDown size={14} />
-                      </button>
-                    </th>
-                    <th className="pb-3 pr-6">
-                      <button className="flex items-center gap-1" onClick={() => handleSort("patient")}>
-                        Patient
-                        <ArrowUpDown size={14} />
-                      </button>
-                    </th>
-                    <th className="pb-3 pr-6">
-                      <button className="flex items-center gap-1" onClick={() => handleSort("doctor")}>
-                        Doctor
-                        <ArrowUpDown size={14} />
-                      </button>
-                    </th>
-                    <th className="pb-3 pr-6">
-                      <button className="flex items-center gap-1" onClick={() => handleSort("date")}>
-                        Date
-                        <ArrowUpDown size={14} />
-                      </button>
-                    </th>
-                    <th className="pb-3 pr-6">Branch</th>
+                    <th className="pb-3 pr-6">File</th>
+                    <th className="pb-3 pr-6">User</th>
                     <th className="pb-3 pr-6">Status</th>
-                    <th className="pb-3 pr-6">Items</th>
-                    <th className="pb-3 pr-6">Notes</th>
+                    <th className="pb-3 pr-6">Uploaded</th>
                     <th className="pb-3">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {sortedPrescriptions.map((prescription) => (
-                    <tr key={prescription.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                      <td className="py-4 pr-6 font-medium text-gray-900">{prescription.id}</td>
-                      <td className="py-4 pr-6 text-sm text-gray-900">{prescription.patient}</td>
-                      <td className="py-4 pr-6 text-sm text-gray-900">{prescription.doctor}</td>
-                      <td className="py-4 pr-6 text-sm text-gray-900">{prescription.date}</td>
-                      <td className="py-4 pr-6 text-sm text-gray-600">{prescription.branch}</td>
+                  {sortedPrescriptions.map((p) => (
+                    <tr key={p.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                       <td className="py-4 pr-6">
-                        <div className="flex items-center">
-                          {getStatusIcon(prescription.status)}
-                          <span className={`ml-2 px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(prescription.status)}`}>
-                            {prescription.status}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="py-4 pr-6 text-sm text-gray-900">{prescription.items}</td>
-                      <td className="py-4 pr-6 text-sm text-gray-600 max-w-xs truncate" title={prescription.notes}>
-                        {prescription.notes}
-                      </td>
-                      <td className="py-4">
-                        <button className="p-1 text-gray-600 hover:text-gray-900 transition-colors">
-                          <Eye size={16} />
+                        <button onClick={() => setPreviewUrl(signedUrls[p.id] || p.file_url)} className="text-blue-600 underline flex items-center gap-2">
+                          <FileText size={16} />
+                          {p.file_name}
                         </button>
+                      </td>
+                      <td className="py-4 pr-6 text-sm text-gray-900">{p.profiles?.full_name || p.user_id}</td>
+                      <td className="py-4 pr-6">
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(p.status)}`}>{p.status.charAt(0).toUpperCase() + p.status.slice(1)}</span>
+                      </td>
+                      <td className="py-4 pr-6 text-sm text-gray-600">{format(new Date(p.created_at), 'MMM d, yyyy')}</td>
+                      <td className="py-4 flex gap-2 items-center">
+                        {p.status === 'pending' && (
+                          <>
+                            <button disabled={reviewingId === p.id} onClick={() => handleApprove(p.id)} className="px-3 py-1 rounded bg-green-100 text-green-800 hover:bg-green-200">Approve</button>
+                            <button disabled={reviewingId === p.id} onClick={() => setReviewingId(p.id)} className="px-3 py-1 rounded bg-red-100 text-red-800 hover:bg-red-200">Reject</button>
+                            {reviewingId === p.id && (
+                              <div className="flex gap-2 items-center ml-2">
+                                <input type="text" placeholder="Reason" value={rejectionReason} onChange={e => setRejectionReason(e.target.value)} className="border px-2 py-1 rounded text-xs" />
+                                <button onClick={() => handleReject(p.id)} className="px-2 py-1 rounded bg-red-500 text-white text-xs">Confirm</button>
+                              </div>
+                            )}
+                          </>
+                        )}
+                        {p.status !== 'pending' && <span className="text-gray-400 text-xs">Done</span>}
                       </td>
                     </tr>
                   ))}
@@ -370,6 +338,17 @@ export default function PrescriptionsPage() {
             </div>
           </div>
         </motion.div>
+        {/* Preview modal */}
+        {previewUrl && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-2xl w-full relative">
+              <button onClick={() => setPreviewUrl(null)} className="absolute top-2 right-2 text-gray-500 hover:text-gray-900">&times;</button>
+              <Zoom>
+                <img src={previewUrl} alt="Prescription Preview" className="max-h-[60vh] rounded shadow cursor-zoom-in mx-auto" />
+              </Zoom>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

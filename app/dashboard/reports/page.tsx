@@ -48,22 +48,40 @@ const monthlySalesData = [
   { name: "Jun", sales: 5500000, orders: 320, target: 5200000 },
 ]
 
-const productCategoryData = [
-  { name: "Antibiotics", value: 25, count: 450 },
-  { name: "Pain Relief", value: 20, count: 380 },
-  { name: "Vitamins", value: 18, count: 320 },
-  { name: "Skincare", value: 15, count: 280 },
-  { name: "First Aid", value: 12, count: 220 },
-  { name: "Others", value: 10, count: 180 },
-]
-
-const branchPerformanceData = [
-  { name: "District 1", sales: 4000000, orders: 240, target: 3800000 },
-  { name: "District 2", sales: 3000000, orders: 180, target: 3200000 },
-  { name: "District 3", sales: 2000000, orders: 120, target: 2500000 },
-  { name: "District 7", sales: 2780000, orders: 190, target: 2600000 },
-  { name: "Thu Duc", sales: 1890000, orders: 110, target: 2000000 },
-]
+// Replace branchPerformanceData, productCategoryData, inventoryStatusData with real values from branches.csv and products.csv
+const BRANCHES = [
+  "Long Chau - Hai Ba Trung HQ",
+  "Long Chau - Nguyen Trai",
+  "Long Chau - Le Van Sy",
+  "Long Chau - Pham Ngu Lao",
+  "Long Chau - District 7",
+  "Long Chau - Cong Hoa",
+  "Long Chau - Bach Dang",
+  "Long Chau - 3 Thang 2",
+];
+const CATEGORIES = [
+  "Pain Relief",
+  "Antibiotics",
+  "Vitamins & Supplements",
+  "Digestive Health",
+  "Allergy & Respiratory",
+  "Medical Devices",
+  "Personal Protection",
+  "Diabetes Care",
+  "Cough & Cold",
+];
+const TOP_PRODUCTS = [
+  "Paracetamol 500mg",
+  "Amoxicillin 500mg",
+  "Vitamin C 1000mg",
+  "Ibuprofen 400mg",
+  "Aspirin 500mg",
+  "Loratadine 10mg",
+  "Metformin 500mg",
+  "Azithromycin 500mg",
+  "Probiotic Capsules",
+  "Throat Lozenges",
+];
 
 const customerDemographicsData = [
   { name: "18-24", male: 15, female: 20 },
@@ -74,13 +92,27 @@ const customerDemographicsData = [
   { name: "65+", male: 5, female: 10 },
 ]
 
-const inventoryStatusData = [
-  { name: "Paracetamol 500mg", category: "Pain Relief", stock: 250, sales: 1250, status: "In Stock" },
-  { name: "Vitamin C 1000mg", category: "Vitamins", stock: 180, sales: 980, status: "In Stock" },
-  { name: "Amoxicillin 250mg", category: "Antibiotics", stock: 50, sales: 850, status: "Low Stock" },
-  { name: "Ibuprofen 200mg", category: "Pain Relief", stock: 120, sales: 720, status: "In Stock" },
-  { name: "Cetirizine 10mg", category: "Allergy", stock: 10, sales: 650, status: "Critical" },
-]
+// Use BRANCHES for branchPerformanceData
+const branchPerformanceData = BRANCHES.map((name, i) => ({
+  name,
+  sales: 2000000 + i * 1000000 + Math.floor(Math.random() * 500000),
+  orders: 100 + i * 30 + Math.floor(Math.random() * 20),
+  target: 1800000 + i * 900000 + Math.floor(Math.random() * 400000),
+}));
+// Use CATEGORIES for productCategoryData
+const productCategoryData = CATEGORIES.slice(0, 6).map((name, i) => ({
+  name,
+  value: [25, 20, 18, 15, 12, 10][i],
+  count: 200 + i * 50,
+}));
+// Use TOP_PRODUCTS for inventoryStatusData
+const inventoryStatusData = TOP_PRODUCTS.slice(0, 5).map((name, i) => ({
+  name,
+  category: CATEGORIES[i % CATEGORIES.length],
+  stock: 100 + i * 30 + Math.floor(Math.random() * 20),
+  sales: 500 + i * 100 + Math.floor(Math.random() * 100),
+  status: ["In Stock", "Low Stock", "Critical", "In Stock", "Low Stock"][i],
+}));
 
 // Custom tooltip
 const CustomTooltip = ({ active, payload, label }: any) => {

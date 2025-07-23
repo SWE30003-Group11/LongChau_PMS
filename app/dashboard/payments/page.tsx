@@ -1,59 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Search, Filter, Download, ArrowUpDown, CheckCircle, XCircle, Clock, CreditCard, DollarSign, TrendingUp } from "lucide-react"
 import { motion } from "framer-motion"
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
+import { supabase } from "@/lib/supabase/client"
+import { useAuth } from "@/contexts/AuthContext"
 
 // Mock payments data
-const payments = [
-  {
-    id: "PMT-001",
-    orderId: "ORD-1001",
-    customer: "Nguyen Van A",
-    amount: 1500000,
-    method: "Credit Card",
-    date: "2024-06-01",
-    status: "Completed",
-  },
-  {
-    id: "PMT-002",
-    orderId: "ORD-1002",
-    customer: "Tran Thi B",
-    amount: 2000000,
-    method: "Bank Transfer",
-    date: "2024-06-02",
-    status: "Pending",
-  },
-  {
-    id: "PMT-003",
-    orderId: "ORD-1003",
-    customer: "Le Van C",
-    amount: 500000,
-    method: "Cash",
-    date: "2024-06-03",
-    status: "Failed",
-  },
-  {
-    id: "PMT-004",
-    orderId: "ORD-1004",
-    customer: "Pham Thi D",
-    amount: 1200000,
-    method: "Credit Card",
-    date: "2024-06-04",
-    status: "Completed",
-  },
-  {
-    id: "PMT-005",
-    orderId: "ORD-1005",
-    customer: "Hoang Van E",
-    amount: 800000,
-    method: "Bank Transfer",
-    date: "2024-06-05",
-    status: "Completed",
-  },
-]
-
 const COLORS = {
   primary: "#111111",
   secondary: "#666666",
@@ -62,35 +16,6 @@ const COLORS = {
   bankTransfer: "#f59e0b",
   cash: "#10b981",
 }
-
-const totalRevenue = payments.reduce((sum, p) => sum + p.amount, 0)
-const completedPayments = payments.filter(p => p.status === "Completed")
-const completedRevenue = completedPayments.reduce((sum, p) => sum + p.amount, 0)
-
-const paymentMethodData = Object.entries(
-  payments.reduce((acc: Record<string, number>, curr) => {
-    acc[curr.method] = (acc[curr.method] || 0) + 1
-    return acc
-  }, {})
-).map(([name, value]) => ({
-  name,
-  value,
-  color: name === "Credit Card" ? COLORS.creditCard : name === "Bank Transfer" ? COLORS.bankTransfer : COLORS.cash
-}))
-
-const paymentStatusData = [
-  { name: "Completed", value: payments.filter((p) => p.status === "Completed").length },
-  { name: "Pending", value: payments.filter((p) => p.status === "Pending").length },
-  { name: "Failed", value: payments.filter((p) => p.status === "Failed").length },
-]
-
-const dailyRevenueData = [
-  { name: "Jun 1", revenue: payments.filter((p) => p.date === "2024-06-01").reduce((sum, p) => sum + p.amount, 0) },
-  { name: "Jun 2", revenue: payments.filter((p) => p.date === "2024-06-02").reduce((sum, p) => sum + p.amount, 0) },
-  { name: "Jun 3", revenue: payments.filter((p) => p.date === "2024-06-03").reduce((sum, p) => sum + p.amount, 0) },
-  { name: "Jun 4", revenue: payments.filter((p) => p.date === "2024-06-04").reduce((sum, p) => sum + p.amount, 0) },
-  { name: "Jun 5", revenue: payments.filter((p) => p.date === "2024-06-05").reduce((sum, p) => sum + p.amount, 0) },
-]
 
 // Custom tooltip
 const CustomTooltip = ({ active, payload, label }: any) => {
@@ -112,9 +37,53 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 }
 
 export default function PaymentsPage() {
+  const { profile } = useAuth()
+  const [payments, setPayments] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [sortField, setSortField] = useState<string | null>(null)
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc")
+  const [currentPage, setCurrentPage] = useState(1)
+  const paymentsPerPage = 10
+  const [exporting, setExporting] = useState(false)
+
+  useEffect(() => {
+    async function fetchPayments() {
+      setLoading(true)
+      setError(null)
+      if (!profile?.current_branch_id) {
+        setPayments([])
+        setLoading(false)
+        return
+      }
+      // Fetch payments, join with orders and profiles for order/customer info, filter by branch
+      const { data, error } = await supabase
+        .from('payments')
+        .select('id, order_id, payment_method, amount, status, created_at, order:orders(order_number, status, branch_id, user:profiles(full_name))')
+        .order('created_at', { ascending: false })
+      if (error) {
+        setError("Failed to load payments")
+        setLoading(false)
+        return
+      }
+      // Only show payments for orders in current branch
+      const filtered = (data || []).filter((p: any) => p.order && p.order.branch_id === profile.current_branch_id)
+      // Map to table format
+      const mapped = filtered.map((p: any) => ({
+        id: p.id,
+        orderId: p.order?.order_number || p.order_id,
+        customer: p.order?.user?.full_name || "-",
+        amount: p.amount,
+        method: p.payment_method.charAt(0).toUpperCase() + p.payment_method.slice(1),
+        date: p.created_at ? p.created_at.slice(0, 10) : "",
+        status: p.status.charAt(0).toUpperCase() + p.status.slice(1),
+      }))
+      setPayments(mapped)
+      setLoading(false)
+    }
+    fetchPayments()
+  }, [profile?.current_branch_id])
 
   const handleSort = (field: string) => {
     if (sortField === field) {
@@ -127,28 +96,77 @@ export default function PaymentsPage() {
 
   const filteredPayments = payments.filter(
     (payment) =>
-      payment.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      payment.orderId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      payment.customer.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      payment.method.toLowerCase().includes(searchTerm.toLowerCase()),
+      payment.id.toString().toLowerCase().includes(searchTerm.toLowerCase()) ||
+      payment.orderId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      payment.customer?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      payment.method?.toLowerCase().includes(searchTerm.toLowerCase()),
   )
 
   const sortedPayments = [...filteredPayments].sort((a, b) => {
     if (!sortField) return 0
-
     const fieldA = a[sortField as keyof typeof a]
     const fieldB = b[sortField as keyof typeof b]
-
     if (typeof fieldA === "string" && typeof fieldB === "string") {
       return sortDirection === "asc" ? fieldA.localeCompare(fieldB) : fieldB.localeCompare(fieldA)
     }
-
     if (typeof fieldA === "number" && typeof fieldB === "number") {
       return sortDirection === "asc" ? fieldA - fieldB : fieldB - fieldA
     }
-
     return 0
   })
+
+  const totalPages = Math.ceil(sortedPayments.length / paymentsPerPage)
+  const paginatedPayments = sortedPayments.slice((currentPage - 1) * paymentsPerPage, currentPage * paymentsPerPage)
+
+  // Stats
+  const totalRevenue = payments.reduce((sum, p) => sum + (p.amount || 0), 0)
+  const completedPayments = payments.filter(p => p.status === "Completed")
+  const completedRevenue = completedPayments.reduce((sum, p) => sum + (p.amount || 0), 0)
+  const paymentMethodData = Object.entries(
+    payments.reduce((acc: Record<string, number>, curr) => {
+      acc[curr.method] = (acc[curr.method] || 0) + 1
+      return acc
+    }, {})
+  ).map(([name, value]) => ({
+    name,
+    value,
+    color: name === "Credit Card" ? COLORS.creditCard : name === "E-wallet" ? COLORS.bankTransfer : COLORS.cash
+  }))
+  const paymentStatusData = [
+    { name: "Completed", value: payments.filter((p) => p.status === "Completed").length },
+    { name: "Pending", value: payments.filter((p) => p.status === "Pending").length },
+    { name: "Failed", value: payments.filter((p) => p.status === "Failed").length },
+  ]
+  // Daily revenue for the last 7 days
+  const last7Days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date()
+    d.setDate(d.getDate() - (6 - i))
+    return d.toISOString().slice(0, 10)
+  })
+  const dailyRevenueData = last7Days.map(date => ({
+    name: date.slice(5),
+    revenue: payments.filter((p) => p.date === date).reduce((sum, p) => sum + (p.amount || 0), 0)
+  }))
+
+  // Export to CSV
+  const handleExport = () => {
+    setExporting(true)
+    const headers = ['Payment ID', 'Order ID', 'Customer', 'Amount', 'Method', 'Date', 'Status']
+    const rows = sortedPayments.map(payment => [
+      payment.id, payment.orderId, payment.customer, payment.amount, payment.method, payment.date, payment.status
+    ])
+    const csv = [headers, ...rows].map(r => r.join(",")).join("\n")
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'payments.csv'
+    a.click()
+    setTimeout(() => {
+      URL.revokeObjectURL(url)
+      setExporting(false)
+    }, 1000)
+  }
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -176,6 +194,10 @@ export default function PaymentsPage() {
     }
   }
 
+  if (!profile?.current_branch_id) {
+    return <div className="min-h-screen flex items-center justify-center text-gray-500">Please select a branch in settings.</div>
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="p-8">
@@ -194,9 +216,9 @@ export default function PaymentsPage() {
             transition={{ delay: 0.1 }}
             className="mt-4 md:mt-0"
           >
-            <button className="px-4 py-2 border border-gray-200 text-gray-700 rounded-full hover:bg-gray-50 transition-colors flex items-center">
+            <button className="px-4 py-2 border border-gray-200 text-gray-700 rounded-full hover:bg-gray-50 transition-colors flex items-center" onClick={handleExport} disabled={exporting}>
               <Download size={16} className="mr-2" />
-              Export
+              {exporting ? "Exporting..." : "Export"}
             </button>
           </motion.div>
         </div>
@@ -385,7 +407,7 @@ export default function PaymentsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {sortedPayments.map((payment) => (
+                  {paginatedPayments.map((payment) => (
                     <tr key={payment.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                       <td className="py-4 pr-6 font-medium text-gray-900">{payment.id}</td>
                       <td className="py-4 pr-6 text-sm text-gray-900">{payment.orderId}</td>
@@ -411,8 +433,8 @@ export default function PaymentsPage() {
           {/* Pagination */}
           <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between">
             <div className="text-sm text-gray-500">
-              Showing <span className="font-medium">{sortedPayments.length}</span> of{" "}
-              <span className="font-medium">{payments.length}</span> payments
+              Showing <span className="font-medium">{paginatedPayments.length}</span> of{" "}
+              <span className="font-medium">{sortedPayments.length}</span> payments
             </div>
             <div className="flex items-center space-x-2">
               <button className="px-3 py-1 rounded-full border border-gray-200 text-gray-400 text-sm" disabled>

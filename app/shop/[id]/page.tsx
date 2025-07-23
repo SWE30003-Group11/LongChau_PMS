@@ -1,549 +1,179 @@
 "use client"
 
-import { useState } from "react"
+import { use, useState, useEffect } from "react"
 import Link from "next/link"
-import { Minus, Plus, Shield, Truck, Clock, AlertCircle, FileText, Package, Heart, Phone, MessageCircle, CheckCircle, XCircle, Info, ArrowRight } from "lucide-react"
+import { Minus, Plus, Shield, Truck, Clock, AlertCircle, FileText, Package, Heart, Phone, MessageCircle, CheckCircle, XCircle, Info, ArrowRight, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { motion } from "framer-motion"
 import { useCart } from "@/hooks/use-cart"
+import { supabase } from "@/lib/supabase/client"
+import { useAuth } from "@/contexts/AuthContext"
 
-// Comprehensive pharmacy product data
-const products = [
-  {
-    id: 1,
-    name: "Paracetamol 500mg",
-    genericName: "Acetaminophen",
-    price: 25000,
-    originalPrice: 30000,
-    image: "/products/paracetamol-main.jpg",
-    category: "Pain Relief",
-    manufacturer: "DHG Pharma",
-    prescriptionRequired: false,
-    inStock: true,
-    packSize: "Box of 100 tablets",
-    strength: "500mg",
-    images: [
-      "/products/paracetamol-1.jpg",
-      "/products/paracetamol-2.jpg",
-      "/products/paracetamol-3.jpg",
-    ],
-    description: "Paracetamol is a widely used analgesic and antipyretic medication. It provides effective relief from mild to moderate pain and helps reduce fever. This trusted medication has been used safely for decades and is suitable for most adults and children when used as directed.",
-    
-    // Key features for hero section
-    keyFeatures: {
-      mainBenefit: "Fast-acting pain relief",
-      duration: "4-6 hours",
-      onset: "15-30 minutes",
-      form: "Easy-to-swallow tablets"
-    },
-    
-    // Active and inactive ingredients
-    activeIngredient: "Paracetamol 500mg",
-    inactiveIngredients: "Corn starch, Povidone, Sodium starch glycolate, Magnesium stearate, Purified water",
-    
-    // Medical information
-    indications: [
-      "Relief of mild to moderate pain including headache",
-      "Migraine and tension headaches",
-      "Muscle aches and backache",
-      "Toothache and dental pain",
-      "Common cold and flu symptoms",
-      "Reduction of fever"
-    ],
-    
-    mechanismOfAction: "Paracetamol works by inhibiting prostaglandin synthesis in the central nervous system and blocking pain impulses. It also acts on the hypothalamic heat-regulating center to produce antipyresis (fever reduction).",
-    
-    pharmacokinetics: {
-      absorption: "Rapidly absorbed from the gastrointestinal tract",
-      distribution: "Uniformly distributed throughout body fluids",
-      metabolism: "Metabolized primarily in the liver",
-      elimination: "Excreted in urine, half-life 1-4 hours"
-    },
-    
-    // Dosage information
-    dosage: {
-      adults: "1-2 tablets (500-1000mg) every 4-6 hours as needed. Maximum 4g (8 tablets) in 24 hours.",
-      children: {
-        "6-12 years": "250-500mg every 4-6 hours. Maximum 4 doses in 24 hours.",
-        "Under 6 years": "Consult a healthcare provider for appropriate dosing."
-      },
-      elderly: "No special dosage adjustments required unless liver or kidney function is impaired.",
-      specialPopulations: "Patients with liver or kidney disease should consult their doctor for appropriate dosing."
-    },
-    
-    // Contraindications and warnings
-    contraindications: [
-      "Hypersensitivity to paracetamol or any excipients",
-      "Severe liver impairment or active liver disease",
-      "Severe kidney impairment (CrCl < 10 mL/min)"
-    ],
-    
-    warnings: [
-      "Do not exceed recommended dose - overdose may cause severe liver damage",
-      "Avoid alcohol while taking this medication",
-      "Consult doctor if symptoms persist for more than 3 days",
-      "Use with caution in patients with liver or kidney disease",
-      "Contains paracetamol - do not take with other paracetamol-containing products"
-    ],
-    
-    precautions: [
-      "Chronic alcohol users should limit intake",
-      "May interact with warfarin - monitor INR",
-      "Use caution in dehydrated or malnourished patients"
-    ],
-    
-    // Side effects
-    sideEffects: {
-      common: [
-        "Generally well tolerated at recommended doses",
-        "Rare nausea or stomach upset"
-      ],
-      uncommon: [
-        "Allergic skin reactions (rash, itching)",
-        "Blood disorders (very rare)"
-      ],
-      serious: [
-        "Severe skin reactions (seek immediate medical attention)",
-        "Signs of overdose: nausea, vomiting, loss of appetite, pallor"
-      ]
-    },
-    
-    // Drug interactions
-    interactions: [
-      {
-        drug: "Warfarin",
-        effect: "May enhance anticoagulant effect with prolonged use",
-        recommendation: "Monitor INR if used regularly"
-      },
-      {
-        drug: "Alcohol",
-        effect: "Increased risk of liver damage",
-        recommendation: "Avoid alcohol consumption"
-      },
-      {
-        drug: "Other paracetamol products",
-        effect: "Risk of overdose",
-        recommendation: "Do not use together"
-      }
-    ],
-    
-    // Storage and handling
-    storage: "Store below 30°C in a dry place. Keep out of reach of children. Do not use after expiry date.",
-    shelfLife: "36 months from manufacture date",
-    
-    // Regulatory information
-    registrationNumber: "VD-12345-11",
-    barcode: "8934564120015",
-    
-    // Additional product info
-    pregnancyCategory: "Category A - Safe in pregnancy when used as directed",
-    lactation: "Safe during breastfeeding at recommended doses",
-    
-    // Quality attributes
-    qualityFeatures: [
-      { icon: Shield, text: "GMP Certified Manufacturing" },
-      { icon: CheckCircle, text: "Quality Tested" },
-      { icon: Package, text: "Tamper-Evident Packaging" },
-      { icon: Info, text: "Complete Drug Information" }
-    ],
-    
-    // Related products
-    relatedProducts: [
-      {
-        id: 2,
-        name: "Ibuprofen 400mg",
-        price: 35000,
-        image: "/products/ibuprofen.jpg",
-      },
-      {
-        id: 3,
-        name: "Aspirin 500mg", 
-        price: 28000,
-        image: "/products/aspirin.jpg",
-      },
-      {
-        id: 4,
-        name: "Paracetamol Syrup 120mg/5ml",
-        price: 45000,
-        image: "/products/paracetamol-syrup.jpg",
-      }
-    ],
-    
-    // Frequently bought together
-    bundleProducts: [
-      {
-        id: 5,
-        name: "Vitamin C 1000mg",
-        price: 65000,
-        image: "/products/vitamin-c.jpg"
-      },
-      {
-        id: 6,
-        name: "Throat Lozenges",
-        price: 25000,
-        image: "/products/lozenges.jpg"
-      }
-    ]
-  },
-  {
-    id: 2,
-    name: "Amoxicillin 500mg",
-    genericName: "Amoxicillin",
-    price: 85000,
-    originalPrice: 95000,
-    image: "/products/amoxicillin-main.jpg",
-    category: "Antibiotics",
-    manufacturer: "Imexpharm",
-    prescriptionRequired: true,
-    inStock: true,
-    packSize: "Box of 20 capsules",
-    strength: "500mg",
-    images: [
-      "/products/amoxicillin-1.jpg",
-      "/products/amoxicillin-2.jpg",
-      "/products/amoxicillin-3.jpg",
-    ],
-    description: "Amoxicillin is a broad-spectrum penicillin antibiotic used to treat various bacterial infections. It works by stopping the growth of bacteria and is effective against many common infections when prescribed by a healthcare professional.",
-    
-    keyFeatures: {
-      mainBenefit: "Broad-spectrum antibiotic",
-      duration: "7-10 days course",
-      onset: "1-2 hours",
-      form: "Easy-to-take capsules"
-    },
-    
-    activeIngredient: "Amoxicillin trihydrate equivalent to 500mg amoxicillin",
-    inactiveIngredients: "Magnesium stearate, Sodium starch glycolate, Microcrystalline cellulose, Gelatin capsule shell",
-    
-    indications: [
-      "Upper respiratory tract infections (pharyngitis, sinusitis)",
-      "Lower respiratory tract infections (bronchitis, pneumonia)",
-      "Urinary tract infections",
-      "Skin and soft tissue infections",
-      "Dental abscesses",
-      "H. pylori eradication (in combination therapy)"
-    ],
-    
-    mechanismOfAction: "Amoxicillin inhibits bacterial cell wall synthesis by binding to penicillin-binding proteins, leading to bacterial cell death. It is bactericidal against susceptible organisms.",
-    
-    pharmacokinetics: {
-      absorption: "Well absorbed orally, not affected by food",
-      distribution: "Widely distributed in body tissues and fluids",
-      metabolism: "Partially metabolized to inactive penicilloic acid",
-      elimination: "60-70% excreted unchanged in urine within 6-8 hours"
-    },
-    
-    dosage: {
-      adults: "500mg every 8 hours or 875mg every 12 hours, depending on infection severity",
-      children: {
-        "Over 40kg": "Same as adult dose",
-        "Under 40kg": "20-40mg/kg/day divided into 3 doses"
-      },
-      elderly: "No dosage adjustment needed unless severe renal impairment",
-      specialPopulations: "Reduce dose in severe renal impairment (CrCl < 30 mL/min)"
-    },
-    
-    contraindications: [
-      "Hypersensitivity to penicillins or cephalosporins",
-      "History of amoxicillin-associated cholestatic jaundice",
-      "Infectious mononucleosis (high risk of rash)"
-    ],
-    
-    warnings: [
-      "Complete the full course even if symptoms improve",
-      "May cause allergic reactions - stop use if rash develops",
-      "Can reduce effectiveness of oral contraceptives",
-      "May cause false positive glucose tests",
-      "Risk of antibiotic-associated diarrhea"
-    ],
-    
-    sideEffects: {
-      common: [
-        "Diarrhea",
-        "Nausea",
-        "Skin rash",
-        "Vomiting"
-      ],
-      uncommon: [
-        "Allergic reactions (urticaria, pruritus)",
-        "Candidiasis (thrush)",
-        "Dizziness",
-        "Headache"
-      ],
-      serious: [
-        "Anaphylactic reaction (rare but serious)",
-        "Stevens-Johnson syndrome (very rare)",
-        "Antibiotic-associated colitis"
-      ]
-    },
-    
-    interactions: [
-      {
-        drug: "Oral contraceptives",
-        effect: "May reduce contraceptive effectiveness",
-        recommendation: "Use additional contraception during treatment"
-      },
-      {
-        drug: "Probenecid",
-        effect: "Increases amoxicillin levels",
-        recommendation: "May require dose adjustment"
-      },
-      {
-        drug: "Allopurinol",
-        effect: "Increased risk of skin rash",
-        recommendation: "Monitor for rash development"
-      }
-    ],
-    
-    storage: "Store below 25°C in a dry place. Keep container tightly closed.",
-    shelfLife: "24 months from manufacture date",
-    
-    registrationNumber: "VD-23456-15",
-    barcode: "8934564120022",
-    
-    pregnancyCategory: "Category B - Generally safe in pregnancy",
-    lactation: "Excreted in breast milk in small amounts - use with caution",
-    
-    qualityFeatures: [
-      { icon: Shield, text: "WHO-GMP Certified" },
-      { icon: CheckCircle, text: "Bioequivalence Tested" },
-      { icon: Package, text: "Moisture-Protected Packaging" },
-      { icon: Info, text: "Complete Prescribing Information" }
-    ],
-    
-    relatedProducts: [
-      {
-        id: 7,
-        name: "Augmentin 625mg",
-        price: 120000,
-        image: "/products/augmentin.jpg",
-      },
-      {
-        id: 8,
-        name: "Cefixime 200mg",
-        price: 95000,
-        image: "/products/cefixime.jpg",
-      },
-      {
-        id: 9,
-        name: "Azithromycin 500mg",
-        price: 110000,
-        image: "/products/azithromycin.jpg",
-      }
-    ],
-    
-    bundleProducts: [
-      {
-        id: 10,
-        name: "Probiotic Capsules",
-        price: 85000,
-        image: "/products/probiotics.jpg"
-      },
-      {
-        id: 11,
-        name: "Vitamin B Complex",
-        price: 45000,
-        image: "/products/vitamin-b.jpg"
-      }
-    ]
-  },
-  {
-    id: 3,
-    name: "Omron HEM-7120 Blood Pressure Monitor",
-    genericName: "Digital Blood Pressure Monitor",
-    price: 850000,
-    originalPrice: 1200000,
-    image: "/products/bp-monitor-main.jpg",
-    category: "Medical Devices",
-    manufacturer: "Omron Healthcare",
-    prescriptionRequired: false,
-    inStock: true,
-    packSize: "1 unit with arm cuff (22-32cm)",
-    images: [
-      "/products/bp-monitor-1.jpg",
-      "/products/bp-monitor-2.jpg",
-      "/products/bp-monitor-3.jpg",
-    ],
-    description: "The Omron HEM-7120 is a fully automatic digital blood pressure monitor designed for accurate and comfortable measurement at home. Features IntelliSense technology for automatic inflation and deflation at the optimum level for each use.",
-    
-    keyFeatures: {
-      mainBenefit: "Clinically validated accuracy",
-      duration: "5+ years with proper care",
-      onset: "30-second measurement",
-      form: "One-button operation"
-    },
-    
-    // Device specifications instead of drug ingredients
-    specifications: {
-      measurementMethod: "Oscillometric method",
-      measurementRange: {
-        pressure: "0-299 mmHg",
-        pulse: "40-180 beats/min"
-      },
-      accuracy: {
-        pressure: "±3 mmHg",
-        pulse: "±5% of displayed value"
-      },
-      memory: "30 measurements",
-      display: "LCD digital display",
-      powerSource: "4 AA batteries or AC adapter (optional)",
-      cuffSize: "22-32cm (standard adult)",
-      dimensions: "103 x 80 x 129mm",
-      weight: "250g (without batteries)"
-    },
-    
-    indications: [
-      "Home blood pressure monitoring",
-      "Hypertension management",
-      "Pre-hypertension monitoring",
-      "Cardiovascular risk assessment",
-      "Treatment effectiveness monitoring",
-      "White coat hypertension detection"
-    ],
-    
-    features: [
-      "IntelliSense automatic inflation technology",
-      "Irregular heartbeat detection",
-      "Body movement detection",
-      "Average of last 3 readings",
-      "Memory for 30 measurements with date/time",
-      "Large, easy-to-read display",
-      "Universal cuff fits most adult arms"
-    ],
-    
-    // Usage instructions instead of dosage
-    usage: {
-      preparation: [
-        "Rest for 5 minutes before measurement",
-        "Sit with back supported, feet flat on floor",
-        "Place arm at heart level",
-        "Remove tight clothing from upper arm"
-      ],
-      steps: [
-        "Wrap cuff around bare upper arm, 2-3cm above elbow",
-        "Press START button",
-        "Remain still during measurement",
-        "Record results with date and time",
-        "Wait 1-2 minutes between measurements"
-      ],
-      frequency: "Measure twice daily (morning and evening) or as directed by healthcare provider"
-    },
-    
-    // Precautions for device use
-    warnings: [
-      "Not suitable for arrhythmia patients without doctor consultation",
-      "Do not use on injured or inflamed arms",
-      "Keep away from electromagnetic devices during use",
-      "Not for use on infants or children without pediatric cuff",
-      "Consult doctor if consistently abnormal readings"
-    ],
-    
-    maintenance: {
-      cleaning: "Wipe with soft, dry cloth. Do not use alcohol or solvents",
-      storage: "Store in carrying case at room temperature",
-      calibration: "Recommended every 2 years",
-      batteryLife: "Approximately 300 measurements with alkaline batteries"
-    },
-    
-    // Quality certifications
-    certifications: [
-      "FDA approved",
-      "CE marked",
-      "ISO 13485:2016",
-      "Clinically validated (ESH protocol)",
-      "Vietnam MOH registered"
-    ],
-    
-    storage: "Store at -20°C to 60°C, humidity 10-95% (non-condensing)",
-    warranty: "3 years manufacturer warranty",
-    
-    registrationNumber: "GMDN-12345-20",
-    barcode: "8934564120039",
-    
-    qualityFeatures: [
-      { icon: Shield, text: "Clinically Validated" },
-      { icon: CheckCircle, text: "3-Year Warranty" },
-      { icon: Package, text: "Complete Accessories" },
-      { icon: Info, text: "User Manual in Vietnamese" }
-    ],
-    
-    accessories: [
-      "Standard adult cuff (22-32cm)",
-      "Instruction manual",
-      "Quick start guide",
-      "4 AA batteries",
-      "Carrying case"
-    ],
-    
-    relatedProducts: [
-      {
-        id: 12,
-        name: "Omron Large Cuff (32-42cm)",
-        price: 250000,
-        image: "/products/large-cuff.jpg",
-      },
-      {
-        id: 13,
-        name: "AC Adapter for Omron",
-        price: 180000,
-        image: "/products/ac-adapter.jpg",
-      },
-      {
-        id: 14,
-        name: "Digital Thermometer",
-        price: 120000,
-        image: "/products/thermometer.jpg",
-      }
-    ],
-    
-    bundleProducts: [
-      {
-        id: 15,
-        name: "Blood Pressure Log Book",
-        price: 25000,
-        image: "/products/bp-logbook.jpg"
-      },
-      {
-        id: 16,
-        name: "Amlodipine 5mg (30 tablets)",
-        price: 65000,
-        image: "/products/amlodipine.jpg"
-      }
-    ]
-  }
-]
+// Helper to map branch_id to branch name
+const branchIdToName: Record<number, string> = {
+  1: 'Long Chau - Hai Ba Trung HQ',
+  2: 'Long Chau - Nguyen Trai',
+  3: 'Long Chau - Le Van Sy',
+  4: 'Long Chau - Pham Ngu Lao',
+  5: 'Long Chau - District 7',
+  6: 'Long Chau - Cong Hoa',
+  7: 'Long Chau - Bach Dang',
+  8: 'Long Chau - 3 Thang 2',
+};
 
-export default function ProductPage({ params }: { params: { id: string } }) {
-  const productId = Number.parseInt(params.id)
-  const product = products.find((p) => p.id === productId) || products[0]
+interface Product {
+  id: number
+  name: string
+  generic_name?: string
+  price: number
+  original_price?: number | null
+  category?: string | null
+  prescription_required?: boolean
+  in_stock?: boolean
+  manufacturer?: string | null
+  pack_size?: string | null
+  strength?: string | null
+  description?: string | null
+  key_features?: string | null
+  active_ingredient?: string | null
+  mechanism_of_action?: string | null
+  indications?: string | null
+  warranty?: string | null
+  storage?: string | null
+  pregnancy_category?: string | null
+  lactation?: string | null
+  bundle_products?: string | null
+  related_products?: string | null
+  inventory?: { quantity: number, branch_id: number }[]
+}
 
+// Helper function to get product image URL from storage
+function getProductImageUrl(productName: string, imageIndex: number = 0): string {
+  const { data } = supabase.storage.from('product-images').getPublicUrl(`${productName}.png`)
+  return data.publicUrl
+}
+
+// Helper function to get multiple product images
+function getProductImages(productName: string): string[] {
+  // For now, we'll just return the main image
+  // You can extend this to handle multiple images if needed
+  return [getProductImageUrl(productName)]
+}
+
+export default function ProductPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
+  const productId = Number(id)
+  const [product, setProduct] = useState<Product | null>(null)
+  const [loading, setLoading] = useState(true)
   const [quantity, setQuantity] = useState(1)
   const [selectedImage, setSelectedImage] = useState(0)
   const [showPrescriptionUpload, setShowPrescriptionUpload] = useState(false)
   const { addToCart } = useCart()
+  const { user } = useAuth()
+  const [isFavorite, setIsFavorite] = useState(false)
+  const [favoriteId, setFavoriteId] = useState<string | null>(null)
+  const [favoriteLoading, setFavoriteLoading] = useState(false)
+
+  useEffect(() => {
+    async function fetchProduct() {
+      setLoading(true)
+      const { data } = await supabase
+        .from("products")
+        .select("*, inventory:inventory(quantity, branch_id)")
+        .eq("id", productId)
+        .single()
+      setProduct(data as Product)
+      setLoading(false)
+    }
+    fetchProduct()
+  }, [productId])
+
+  // Check if this product is a favorite for the current user
+  useEffect(() => {
+    if (!user || !product) return
+    const checkFavorite = async () => {
+      const { data } = await supabase
+        .from('favorite_products')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('product_id', product.id)
+        .single()
+      if (data && data.id) {
+        setIsFavorite(true)
+        setFavoriteId(data.id)
+      } else {
+        setIsFavorite(false)
+        setFavoriteId(null)
+      }
+    }
+    checkFavorite()
+  }, [user, product])
+
+  // Handle favorite toggle
+  const handleToggleFavorite = async () => {
+    if (!user || !product) return
+    setFavoriteLoading(true)
+    if (isFavorite && favoriteId) {
+      // Remove favorite
+      await supabase.from('favorite_products').delete().eq('id', favoriteId)
+      setIsFavorite(false)
+      setFavoriteId(null)
+    } else {
+      // Add favorite
+      const { data, error } = await supabase.from('favorite_products').insert({ user_id: user.id, product_id: product.id }).select('id').single()
+      if (!error && data && data.id) {
+        setIsFavorite(true)
+        setFavoriteId(data.id)
+      }
+    }
+    setFavoriteLoading(false)
+  }
+
+  if (loading) return <div className="text-center py-20 text-gray-500">Loading product...</div>
+  if (!product) return <div className="text-center py-20 text-red-500">Product not found.</div>
+
+  // Parse JSON fields
+  let keyFeatures: any = {}
+  let bundleProducts: any[] = []
+  let relatedProducts: any[] = []
+  
+  try { if (product.key_features) keyFeatures = JSON.parse(product.key_features) } catch {}
+  try { if (product.bundle_products) bundleProducts = JSON.parse(product.bundle_products) } catch {}
+  try { if (product.related_products) relatedProducts = JSON.parse(product.related_products) } catch {}
+  
+  // Get product images from storage
+  const images = getProductImages(product.name)
+  const imageSrc = images[selectedImage] || "/placeholder.svg"
+
+  const manufacturer = product.manufacturer || "Unknown"
+  const genericName = product.generic_name || null
+  const price = typeof product.price === "number" ? product.price : 0
+  const originalPrice = typeof product.original_price === "number" ? product.original_price : null
+  const inStock = product.in_stock !== undefined ? product.in_stock : true
+  const prescriptionRequired = !!product.prescription_required
+  const category = product.category || "Other"
 
   const handleAddToCart = () => {
-    if (product.prescriptionRequired && !showPrescriptionUpload) {
+    if (prescriptionRequired && !showPrescriptionUpload) {
       setShowPrescriptionUpload(true)
       return
     }
-    
     addToCart({
       id: product.id,
       name: product.name,
-      price: product.price,
-      image: product.image,
+      price: price,
+      image: imageSrc,
       quantity: quantity,
-      prescriptionRequired: product.prescriptionRequired
+      prescriptionRequired: prescriptionRequired
     })
   }
 
-  const isDevice = product.category === "Medical Devices"
+  const totalStock = (product?.inventory || []).reduce((sum, inv) => sum + (inv.quantity || 0), 0);
 
   return (
-    <div className="min-h-screen pt-24 pb-20">
+    <div className="min-h-screen pt-24 pb-20 bg-gradient-to-b from-white to-gray-50">
       {/* Breadcrumb */}
       <div className="bg-gray-50 py-4">
         <div className="container mx-auto px-4">
@@ -552,99 +182,51 @@ export default function ProductPage({ params }: { params: { id: string } }) {
             <span className="mx-2">/</span>
             <Link href="/shop" className="hover:text-gray-900">Shop</Link>
             <span className="mx-2">/</span>
-            <Link href={`/shop?category=${product.category}`} className="hover:text-gray-900">{product.category}</Link>
+            <Link href={`/shop?category=${category}`} className="hover:text-gray-900">{category}</Link>
             <span className="mx-2">/</span>
             <span className="text-gray-900">{product.name}</span>
           </nav>
         </div>
       </div>
 
-      {/* Product Hero Section */}
+      {/* Hero Section */}
       <section className="py-12">
         <div className="container mx-auto px-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-            {/* Product Images */}
-            <motion.div 
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.6 }}
-            >
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+            {/* Product Images Gallery */}
+            <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.6 }}>
               <div className="bg-gradient-to-br from-gray-50 to-white rounded-2xl p-8 mb-4 border border-gray-100">
-                <img
-                  src={product.images?.[selectedImage] || product.image || "/placeholder.svg"}
-                  alt={product.name}
-                  className="w-full h-96 object-contain"
-                />
+                <img src={imageSrc} alt={product.name} className="w-full h-96 object-contain" />
               </div>
-              <div className="grid grid-cols-4 gap-4">
-                <motion.div 
-                  whileHover={{ scale: 1.05 }}
-                  className={`bg-gray-50 rounded-xl p-4 cursor-pointer border-2 transition-all ${selectedImage === -1 ? 'border-gray-900' : 'border-transparent'}`}
-                  onClick={() => setSelectedImage(-1)}
-                >
-                  <img
-                    src={product.image || "/placeholder.svg"}
-                    alt={product.name}
-                    className="w-full h-20 object-contain"
-                  />
-                </motion.div>
-                {product.images?.map((image, index) => (
-                  <motion.div 
-                    key={index}
-                    whileHover={{ scale: 1.05 }}
-                    className={`bg-gray-50 rounded-xl p-4 cursor-pointer border-2 transition-all ${selectedImage === index ? 'border-gray-900' : 'border-transparent'}`}
-                    onClick={() => setSelectedImage(index)}
-                  >
-                    <img
-                      src={image || "/placeholder.svg"}
-                      alt={`${product.name} view ${index + 1}`}
-                      className="w-full h-20 object-contain"
-                    />
-                  </motion.div>
-                ))}
-              </div>
+              {images.length > 1 && (
+                <div className="grid grid-cols-4 gap-4">
+                  {images.map((img, idx) => (
+                    <motion.div key={idx} whileHover={{ scale: 1.05 }} className={`bg-gray-50 rounded-xl p-4 cursor-pointer border-2 transition-all ${selectedImage === idx ? 'border-gray-900' : 'border-transparent'}`} onClick={() => setSelectedImage(idx)}>
+                      <img src={img || "/placeholder.svg"} alt={`${product.name} view ${idx + 1}`} className="w-full h-20 object-contain" />
+                    </motion.div>
+                  ))}
+                </div>
+              )}
             </motion.div>
 
-            {/* Product Info */}
-            <motion.div 
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.6 }}
-            >
-              {/* Header */}
+            {/* Product Info and Actions */}
+            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.6 }}>
               <div className="mb-6">
-                <div className="flex items-center gap-4 mb-3">
-                  <span className="text-sm text-gray-500">{product.manufacturer}</span>
-                  <span className="text-sm text-gray-400">|</span>
-                  <span className="text-sm text-gray-500">Reg No: {product.registrationNumber}</span>
-                  <span className="text-sm text-gray-400">|</span>
-                  <span className="text-sm text-gray-500">Barcode: {product.barcode}</span>
+                <div className="flex flex-wrap items-center gap-4 mb-3">
+                  <span className="text-sm text-gray-500">{manufacturer}</span>
+                  {product.pack_size && <><span className="text-sm text-gray-400">|</span><span className="text-sm text-gray-500">{product.pack_size}</span></>}
+                  {product.strength && <><span className="text-sm text-gray-400">|</span><span className="text-sm text-gray-500">{product.strength}</span></>}
                 </div>
                 <h1 className="text-3xl md:text-4xl font-light mb-2">{product.name}</h1>
-                <p className="text-gray-600 text-lg mb-4">
-                  {product.genericName} {product.strength && `• ${product.strength}`} • {product.packSize}
-                </p>
-                
-                {/* Price */}
+                {genericName && <p className="text-gray-600 text-lg mb-2">{genericName}</p>}
+                {product.description && <p className="text-gray-700 mb-4">{product.description}</p>}
                 <div className="flex items-baseline gap-4 mb-6">
-                  <span className="text-4xl font-light text-gray-900">
-                    {product.price.toLocaleString('vi-VN')}₫
-                  </span>
-                  {product.originalPrice && (
-                    <>
-                      <span className="text-2xl text-gray-400 line-through">
-                        {product.originalPrice.toLocaleString('vi-VN')}₫
-                      </span>
-                      <span className="bg-red-500 text-white text-sm px-3 py-1 rounded-full">
-                        Save {Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)}%
-                      </span>
-                    </>
-                  )}
+                  <span className="text-4xl font-light text-gray-900">{price.toLocaleString('vi-VN')}₫</span>
+                  {originalPrice && <><span className="text-2xl text-gray-400 line-through">{originalPrice.toLocaleString('vi-VN')}₫</span><span className="bg-red-500 text-white text-sm px-3 py-1 rounded-full">Save {Math.round(((originalPrice - price) / originalPrice) * 100)}%</span></>}
                 </div>
               </div>
 
-              {/* Prescription Alert */}
-              {product.prescriptionRequired && (
+              {prescriptionRequired && (
                 <Alert className="mb-6 border-blue-200 bg-blue-50">
                   <AlertCircle className="h-5 w-5 text-blue-600" />
                   <AlertDescription className="text-blue-800">
@@ -654,52 +236,56 @@ export default function ProductPage({ params }: { params: { id: string } }) {
               )}
 
               {/* Key Features */}
-              <div className="grid grid-cols-2 gap-4 mb-8 p-6 bg-gray-50 rounded-xl">
-                <div>
-                  <p className="text-sm text-gray-500 mb-1">Main Benefit</p>
-                  <p className="font-medium">{product.keyFeatures?.mainBenefit}</p>
+              {(keyFeatures.main_benefit || keyFeatures.duration || keyFeatures.onset || keyFeatures.form) && (
+                <div className="grid grid-cols-2 gap-4 mb-8 p-6 bg-gray-50 rounded-xl">
+                  {keyFeatures.main_benefit && <div><p className="text-sm text-gray-500 mb-1">Main Benefit</p><p className="font-medium">{keyFeatures.main_benefit}</p></div>}
+                  {keyFeatures.duration && <div><p className="text-sm text-gray-500 mb-1">Duration</p><p className="font-medium">{keyFeatures.duration}</p></div>}
+                  {keyFeatures.onset && <div><p className="text-sm text-gray-500 mb-1">Onset</p><p className="font-medium">{keyFeatures.onset}</p></div>}
+                  {keyFeatures.form && <div><p className="text-sm text-gray-500 mb-1">Form</p><p className="font-medium">{keyFeatures.form}</p></div>}
                 </div>
-                <div>
-                  <p className="text-sm text-gray-500 mb-1">{isDevice ? 'Measurement Time' : 'Duration'}</p>
-                  <p className="font-medium">{product.keyFeatures?.duration}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500 mb-1">{isDevice ? 'Response Time' : 'Onset of Action'}</p>
-                  <p className="font-medium">{product.keyFeatures?.onset}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500 mb-1">Form</p>
-                  <p className="font-medium">{product.keyFeatures?.form}</p>
-                </div>
-              </div>
-
-              {/* Description */}
-              <div className="mb-8">
-                <p className="text-gray-600 leading-relaxed">{product.description}</p>
-              </div>
+              )}
 
               {/* Stock Status */}
-              <div className="mb-8 flex items-center justify-between p-4 bg-green-50 rounded-xl">
-                {product.inStock ? (
-                  <div className="flex items-center gap-3">
-                    <CheckCircle className="h-6 w-6 text-green-600" />
-                    <div>
-                      <span className="font-medium text-green-900">In Stock</span>
-                      <p className="text-sm text-green-700">Available at Long Chau branches</p>
+              <div className="mb-8 flex flex-col gap-2 p-4 bg-green-50 rounded-xl">
+                <div className="flex items-center justify-between">
+                  {totalStock > 0 ? (
+                    <div className="flex items-center gap-3">
+                      <CheckCircle className="h-6 w-6 text-green-600" />
+                      <div>
+                        <span className="font-medium text-green-900">In Stock</span>
+                        <p className="text-sm text-green-700">Total stock: {totalStock} units</p>
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-3">
-                    <XCircle className="h-6 w-6 text-red-600" />
-                    <div>
-                      <span className="font-medium text-red-900">Out of Stock</span>
-                      <p className="text-sm text-red-700">Notify me when available</p>
+                  ) : (
+                    <div className="flex items-center gap-3">
+                      <XCircle className="h-6 w-6 text-red-600" />
+                      <div>
+                        <span className="font-medium text-red-900">Out of Stock</span>
+                        <p className="text-sm text-red-700">Notify me when available</p>
+                      </div>
                     </div>
-                  </div>
-                )}
-                <Button variant="ghost" size="sm" className="text-blue-600">
-                  Check branch availability
-                </Button>
+                  )}
+                  <Button variant="ghost" size="sm" className="text-blue-600">Check branch availability</Button>
+                </div>
+                {/* Per-branch stock table */}
+                <div className="mt-2">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr>
+                        <th className="text-left">Branch</th>
+                        <th className="text-right">Stock</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(product?.inventory || []).map(inv => (
+                        <tr key={inv.branch_id}>
+                          <td>{branchIdToName[inv.branch_id] || `Branch #${inv.branch_id}`}</td>
+                          <td className="text-right">{inv.quantity}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
               {/* Add to Cart Section */}
@@ -708,950 +294,392 @@ export default function ProductPage({ params }: { params: { id: string } }) {
                   <div className="flex items-center">
                     <span className="text-gray-700 mr-4">Quantity:</span>
                     <div className="flex items-center border border-gray-200 rounded-full">
-                      <button
-                        onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                        className="w-10 h-10 flex items-center justify-center hover:bg-gray-100 rounded-l-full transition-colors"
-                      >
-                        <Minus className="h-4 w-4" />
-                      </button>
+                      <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="w-10 h-10 flex items-center justify-center hover:bg-gray-100 rounded-l-full transition-colors"><Minus className="h-4 w-4" /></button>
                       <span className="w-12 text-center font-medium">{quantity}</span>
-                      <button
-                        onClick={() => setQuantity(quantity + 1)}
-                        className="w-10 h-10 flex items-center justify-center hover:bg-gray-100 rounded-r-full transition-colors"
-                      >
-                        <Plus className="h-4 w-4" />
-                      </button>
+                      <button onClick={() => setQuantity(quantity + 1)} className="w-10 h-10 flex items-center justify-center hover:bg-gray-100 rounded-r-full transition-colors"><Plus className="h-4 w-4" /></button>
                     </div>
                   </div>
                   <div className="text-right">
                     <p className="text-sm text-gray-500">Subtotal</p>
-                    <p className="text-xl font-medium">{(product.price * quantity).toLocaleString('vi-VN')}₫</p>
+                    <p className="text-xl font-medium">{(price * quantity).toLocaleString('vi-VN')}₫</p>
                   </div>
                 </div>
-
                 <div className="flex gap-4">
-                  <Button
-                    onClick={handleAddToCart}
-                    disabled={!product.inStock}
-                    className="flex-1 rounded-full bg-gray-900 hover:bg-gray-800 text-white py-6 text-lg"
-                  >
-                    {product.prescriptionRequired ? (
-                      <>
-                        <FileText className="h-5 w-5 mr-2" />
-                        Upload Prescription to Buy
-                      </>
-                    ) : (
-                      "Add to Cart"
-                    )}
+                  <Button onClick={handleAddToCart} disabled={!inStock} className="flex-1 rounded-full bg-gray-900 hover:bg-gray-800 text-white py-6 text-lg">
+                    {prescriptionRequired ? (<><FileText className="h-5 w-5 mr-2" />Upload Prescription to Buy</>) : ("Add to Cart")}
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="rounded-full w-14 h-14"
-                  >
-                    <Heart className="h-5 w-5" />
-                  </Button>
+                  {/* Favorite Button */}
+                  {user && (
+                    <Button
+                      variant={isFavorite ? "default" : "outline"}
+                      size="icon"
+                      className={`rounded-full w-14 h-14 ${isFavorite ? 'bg-red-500 text-white' : ''}`}
+                      onClick={handleToggleFavorite}
+                      disabled={favoriteLoading}
+                      aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
+                    >
+                      {favoriteLoading ? (
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                      ) : isFavorite ? (
+                        <Heart className="h-5 w-5 fill-current" />
+                      ) : (
+                        <Heart className="h-5 w-5" />
+                      )}
+                    </Button>
+                  )}
                 </div>
-
-                {/* Express Actions */}
                 <div className="grid grid-cols-2 gap-4">
-                  <Button variant="outline" className="rounded-full">
-                    <Phone className="h-4 w-4 mr-2" />
-                    Call Pharmacist
-                  </Button>
-                  <Button variant="outline" className="rounded-full">
-                    <MessageCircle className="h-4 w-4 mr-2" />
-                    Chat Support
-                  </Button>
+                  <Button variant="outline" className="rounded-full"><Phone className="h-4 w-4 mr-2" />Call Pharmacist</Button>
+                  <Button variant="outline" className="rounded-full"><MessageCircle className="h-4 w-4 mr-2" />Chat Support</Button>
                 </div>
               </div>
 
               {/* Trust Badges */}
               <div className="grid grid-cols-4 gap-4 py-6 mt-8 border-t border-gray-200">
-                <div className="text-center">
-                  <Shield className="h-8 w-8 mx-auto mb-2 text-gray-700" />
-                  <p className="text-xs">100% Authentic</p>
-                </div>
-                <div className="text-center">
-                  <Truck className="h-8 w-8 mx-auto mb-2 text-gray-700" />
-                  <p className="text-xs">Fast Delivery</p>
-                </div>
-                <div className="text-center">
-                  <Clock className="h-8 w-8 mx-auto mb-2 text-gray-700" />
-                  <p className="text-xs">24/7 Support</p>
-                </div>
-                <div className="text-center">
-                  <Package className="h-8 w-8 mx-auto mb-2 text-gray-700" />
-                  <p className="text-xs">Secure Package</p>
-                </div>
+                <div className="text-center"><Shield className="h-8 w-8 mx-auto mb-2 text-gray-700" /><p className="text-xs">100% Authentic</p></div>
+                <div className="text-center"><Truck className="h-8 w-8 mx-auto mb-2 text-gray-700" /><p className="text-xs">Fast Delivery</p></div>
+                <div className="text-center"><Clock className="h-8 w-8 mx-auto mb-2 text-gray-700" /><p className="text-xs">24/7 Support</p></div>
+                <div className="text-center"><Package className="h-8 w-8 mx-auto mb-2 text-gray-700" /><p className="text-xs">Secure Package</p></div>
               </div>
-            </motion.div>
-          </div>
-        </div>
-      </section>
 
-      {/* Product Features Section - Similar to original skincare features */}
-      <section className="py-20 bg-gradient-to-b from-gray-50 to-white">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-12">
-            <h2 className="text-4xl font-light mb-4">
-              {isDevice ? (
-                <>
-                  <span className="italic">Accurate</span> measurements,
-                  <br />
-                  <span className="font-normal">trusted</span> results
-                </>
-              ) : (
-                <>
-                  <span className="italic">Effective</span> treatment,
-                  <br />
-                  <span className="font-normal">proven</span> results
-                </>
+              {/* Bundle Products */}
+              {bundleProducts.length > 0 && (
+                <div className="mt-10">
+                  <h3 className="text-lg font-medium mb-4">Frequently Bought Together</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {bundleProducts.map((bp, idx) => (
+                      <div key={idx} className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
+                        <img src={getProductImageUrl(bp.name) || "/placeholder.svg"} alt={bp.name} className="w-16 h-16 object-contain" />
+                        <div className="flex-1"><h5 className="text-sm font-medium">{bp.name}</h5><p className="text-sm text-gray-900">{bp.price?.toLocaleString('vi-VN')}₫</p></div>
+                        <input type="checkbox" defaultChecked className="rounded" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
-            </h2>
-            <div className="h-px w-24 bg-gradient-to-r from-transparent via-gray-400 to-transparent mx-auto" />
-          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center max-w-5xl mx-auto">
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6 }}
-            >
-              <div className="aspect-w-1 aspect-h-1 rounded-2xl overflow-hidden">
-                <img
-                  src="/products/feature-image.jpg"
-                  alt="Product feature"
-                  className="w-full h-full object-cover"
-                />
-              </div>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6 }}
-              className="space-y-8"
-            >
-              <div>
-                <h3 className="text-lg font-medium mb-3">RECOMMENDED FOR</h3>
-                <ul className="space-y-2">
-                  {product.indications?.slice(0, 3).map((item, index) => (
-                    <li key={index} className="flex items-start">
-                      <CheckCircle className="h-5 w-5 text-green-600 mr-3 mt-0.5 flex-shrink-0" />
-                      <span className="text-gray-600">{item}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              <div>
-                <h3 className="text-lg font-medium mb-3">QUALITY ASSURANCE</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  {product.qualityFeatures?.map((feature, index) => (
-                    <div key={index} className="flex items-center gap-3">
-                      <feature.icon className="h-5 w-5 text-gray-700" />
-                      <span className="text-sm text-gray-600">{feature.text}</span>
-                    </div>
-                  ))}
+              {/* Related Products */}
+              {relatedProducts.length > 0 && (
+                <div className="mt-10">
+                  <h3 className="text-lg font-medium mb-4">Related Products</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {relatedProducts.map((rp, idx) => (
+                      <Link key={idx} href={`/shop/${rp.id}`} className="group block">
+                        <div className="bg-white rounded-xl overflow-hidden border border-gray-100 hover:shadow-lg transition-all">
+                          <div className="bg-gradient-to-br from-gray-50 to-white p-6"><img src={getProductImageUrl(rp.name) || "/placeholder.svg"} alt={rp.name} className="w-full h-32 object-contain group-hover:scale-105 transition-transform" /></div>
+                          <div className="p-4"><h3 className="text-sm font-medium mb-2 group-hover:text-blue-600 transition-colors">{rp.name}</h3><p className="text-lg font-medium text-gray-900">{rp.price?.toLocaleString('vi-VN')}₫</p></div>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
             </motion.div>
           </div>
         </div>
       </section>
 
-      {/* Product Details Tabs - Enhanced for pharmacy products */}
-      <section className="py-20">
+      {/* FAQ Section and Details Tabs */}
+      <section className="py-24 bg-gradient-to-b from-gray-50 to-white">
         <div className="container mx-auto px-4">
-          <h2 className="text-center mb-12">
-            <span className="text-3xl font-light italic text-gray-700">comprehensive</span>
-            <br />
-            <span className="text-4xl font-light text-gray-900">PRODUCT INFORMATION</span>
-          </h2>
+          {/* Enhanced Section Header */}
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.8 }}
+            className="text-center mb-16"
+          >
+            <div className="inline-flex items-center gap-3 mb-6">
+              <div className="h-px w-12 bg-gradient-to-r from-transparent to-gray-300"></div>
+              <span className="text-sm uppercase tracking-wider text-gray-500 font-medium">Product Information</span>
+              <div className="h-px w-12 bg-gradient-to-l from-transparent to-gray-300"></div>
+            </div>
+            <h2 className="font-playfair text-5xl md:text-6xl font-light text-gray-900 mb-4">
+              <span className="italic text-gray-600">Comprehensive</span><br />
+              <span className="text-gray-900">Details</span>
+            </h2>
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto leading-relaxed">
+              Everything you need to know about this product, from ingredients to usage guidelines
+            </p>
+          </motion.div>
 
           <Tabs defaultValue="details" className="max-w-6xl mx-auto">
-            <TabsList className="w-full bg-white rounded-full p-1 mb-8 grid grid-cols-5">
-              <TabsTrigger value="details" className="rounded-full">
-                {isDevice ? 'Specifications' : 'Drug Details'}
-              </TabsTrigger>
-              <TabsTrigger value="usage" className="rounded-full">
-                {isDevice ? 'How to Use' : 'Dosage'}
-              </TabsTrigger>
-              <TabsTrigger value="ingredients" className="rounded-full">
-                {isDevice ? 'Features' : 'Composition'}
-              </TabsTrigger>
-              <TabsTrigger value="warnings" className="rounded-full">
-                Warnings
-              </TabsTrigger>
-              <TabsTrigger value="faq" className="rounded-full">
-                FAQ
-              </TabsTrigger>
-            </TabsList>
-
-            {/* Details Tab */}
-            <TabsContent value="details" className="bg-white p-8 rounded-2xl shadow-sm">
-              {isDevice ? (
-                // Device Specifications
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                  <div>
-                    <h3 className="text-lg font-medium mb-6 text-gray-900">Technical Specifications</h3>
-                    <dl className="space-y-4">
-                      <div>
-                        <dt className="text-sm text-gray-500 mb-1">Measurement Method</dt>
-                        <dd className="font-medium">{product.specifications?.measurementMethod}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-sm text-gray-500 mb-1">Measurement Range</dt>
-                        <dd className="font-medium">
-                          Pressure: {product.specifications?.measurementRange?.pressure}<br />
-                          Pulse: {product.specifications?.measurementRange?.pulse}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt className="text-sm text-gray-500 mb-1">Accuracy</dt>
-                        <dd className="font-medium">
-                          Pressure: {product.specifications?.accuracy?.pressure}<br />
-                          Pulse: {product.specifications?.accuracy?.pulse}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt className="text-sm text-gray-500 mb-1">Power Source</dt>
-                        <dd className="font-medium">{product.specifications?.powerSource}</dd>
-                      </div>
-                    </dl>
-                  </div>
-                  
-                  <div>
-                    <h3 className="text-lg font-medium mb-6 text-gray-900">Physical Specifications</h3>
-                    <dl className="space-y-4">
-                      <div>
-                        <dt className="text-sm text-gray-500 mb-1">Display</dt>
-                        <dd className="font-medium">{product.specifications?.display}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-sm text-gray-500 mb-1">Memory Capacity</dt>
-                        <dd className="font-medium">{product.specifications?.memory}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-sm text-gray-500 mb-1">Dimensions</dt>
-                        <dd className="font-medium">{product.specifications?.dimensions}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-sm text-gray-500 mb-1">Weight</dt>
-                        <dd className="font-medium">{product.specifications?.weight}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-sm text-gray-500 mb-1">Cuff Size</dt>
-                        <dd className="font-medium">{product.specifications?.cuffSize}</dd>
-                      </div>
-                    </dl>
-                    
-                    <h4 className="text-md font-medium mt-8 mb-4">Certifications</h4>
-                    <div className="flex flex-wrap gap-2">
-                      {product.certifications?.map((cert, index) => (
-                        <span key={index} className="px-3 py-1 bg-gray-100 rounded-full text-sm">
-                          {cert}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                // Drug Details
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                  <div>
-                    <h3 className="text-lg font-medium mb-6 text-gray-900">Drug Information</h3>
-                    
-                    <div className="space-y-6">
-                      <div>
-                        <h4 className="text-sm text-gray-500 uppercase mb-2">Active Ingredient</h4>
-                        <p className="text-gray-700">{product.activeIngredient}</p>
-                      </div>
-                      
-                      <div>
-                        <h4 className="text-sm text-gray-500 uppercase mb-2">Mechanism of Action</h4>
-                        <p className="text-gray-600 leading-relaxed">{product.mechanismOfAction}</p>
-                      </div>
-                      
-                      <div>
-                        <h4 className="text-sm text-gray-500 uppercase mb-2">Therapeutic Category</h4>
-                        <p className="text-gray-700">{product.category}</p>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <h3 className="text-lg font-medium mb-6 text-gray-900">Pharmacokinetics</h3>
-                    
-                    <dl className="space-y-4">
-                      <div>
-                        <dt className="text-sm text-gray-500 mb-1">Absorption</dt>
-                        <dd className="text-gray-600">{product.pharmacokinetics?.absorption}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-sm text-gray-500 mb-1">Distribution</dt>
-                        <dd className="text-gray-600">{product.pharmacokinetics?.distribution}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-sm text-gray-500 mb-1">Metabolism</dt>
-                        <dd className="text-gray-600">{product.pharmacokinetics?.metabolism}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-sm text-gray-500 mb-1">Elimination</dt>
-                        <dd className="text-gray-600">{product.pharmacokinetics?.elimination}</dd>
-                      </div>
-                    </dl>
-                    
-                    <div className="mt-8 p-4 bg-gray-50 rounded-xl">
-                      <h4 className="text-sm font-medium mb-2">Special Populations</h4>
-                      <p className="text-sm text-gray-600">
-                        <strong>Pregnancy:</strong> {product.pregnancyCategory}<br />
-                        <strong>Lactation:</strong> {product.lactation}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </TabsContent>
-
-            {/* Usage Tab */}
-            <TabsContent value="usage" className="bg-white p-8 rounded-2xl shadow-sm">
-              {isDevice ? (
-                // Device Usage Instructions
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                  <div>
-                    <h3 className="text-lg font-medium mb-6 text-gray-900">How to Use</h3>
-                    
-                    <div className="space-y-6">
-                      <div>
-                        <h4 className="font-medium mb-3">Preparation</h4>
-                        <ol className="space-y-2">
-                          {product.usage?.preparation?.map((step, index) => (
-                            <li key={index} className="flex">
-                              <span className="text-gray-400 mr-3">{index + 1}.</span>
-                              <span className="text-gray-600">{step}</span>
-                            </li>
-                          ))}
-                        </ol>
-                      </div>
-                      
-                      <div>
-                        <h4 className="font-medium mb-3">Measurement Steps</h4>
-                        <ol className="space-y-2">
-                          {product.usage?.steps?.map((step, index) => (
-                            <li key={index} className="flex">
-                              <span className="text-gray-400 mr-3">{index + 1}.</span>
-                              <span className="text-gray-600">{step}</span>
-                            </li>
-                          ))}
-                        </ol>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <h3 className="text-lg font-medium mb-6 text-gray-900">Maintenance & Care</h3>
-                    
-                    <dl className="space-y-4">
-                      <div>
-                        <dt className="font-medium mb-2">Cleaning</dt>
-                        <dd className="text-gray-600">{product.maintenance?.cleaning}</dd>
-                      </div>
-                      <div>
-                        <dt className="font-medium mb-2">Storage</dt>
-                        <dd className="text-gray-600">{product.maintenance?.storage}</dd>
-                      </div>
-                      <div>
-                        <dt className="font-medium mb-2">Calibration</dt>
-                        <dd className="text-gray-600">{product.maintenance?.calibration}</dd>
-                      </div>
-                      <div>
-                        <dt className="font-medium mb-2">Battery Life</dt>
-                        <dd className="text-gray-600">{product.maintenance?.batteryLife}</dd>
-                      </div>
-                    </dl>
-                    
-                    <Alert className="mt-6 border-blue-200 bg-blue-50">
-                      <Info className="h-4 w-4 text-blue-600" />
-                      <AlertDescription className="text-blue-800">
-                        {product.usage?.frequency}
-                      </AlertDescription>
-                    </Alert>
-                  </div>
-                </div>
-              ) : (
-                // Drug Dosage Information
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                  <div>
-                    <h3 className="text-lg font-medium mb-6 text-gray-900">Dosage Instructions</h3>
-                    
-                    <div className="space-y-6">
-                      <div className="p-4 bg-gray-50 rounded-xl">
-                        <h4 className="font-medium mb-3">Adults</h4>
-                        <p className="text-gray-700">{product.dosage?.adults}</p>
-                      </div>
-                      
-                      {product.dosage?.children && (
-                        <div className="p-4 bg-blue-50 rounded-xl">
-                          <h4 className="font-medium mb-3">Children</h4>
-                          {typeof product.dosage.children === 'string' ? (
-                            <p className="text-gray-700">{product.dosage.children}</p>
-                          ) : (
-                            <dl className="space-y-2">
-                              {Object.entries(product.dosage.children).map(([age, dose]) => (
-                                <div key={age}>
-                                  <dt className="font-medium text-sm">{age}:</dt>
-                                  <dd className="text-gray-700 ml-4">{dose}</dd>
-                                </div>
-                              ))}
-                            </dl>
-                          )}
-                        </div>
-                      )}
-                      
-                      <div className="p-4 bg-amber-50 rounded-xl">
-                        <h4 className="font-medium mb-3">Special Populations</h4>
-                        <p className="text-gray-700 mb-2">
-                          <strong>Elderly:</strong> {product.dosage?.elderly}
-                        </p>
-                        <p className="text-gray-700">
-                          <strong>Renal/Hepatic Impairment:</strong> {product.dosage?.specialPopulations}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <h3 className="text-lg font-medium mb-6 text-gray-900">Administration</h3>
-                    
-                    <div className="space-y-6">
-                      <div className="p-4 bg-green-50 rounded-xl">
-                        <h4 className="font-medium mb-3">How to Take</h4>
-                        <ul className="space-y-2">
-                          <li className="flex items-start">
-                            <CheckCircle className="h-5 w-5 text-green-600 mr-2 mt-0.5" />
-                            <span>Can be taken with or without food</span>
-                          </li>
-                          <li className="flex items-start">
-                            <CheckCircle className="h-5 w-5 text-green-600 mr-2 mt-0.5" />
-                            <span>Swallow whole with water</span>
-                          </li>
-                          <li className="flex items-start">
-                            <CheckCircle className="h-5 w-5 text-green-600 mr-2 mt-0.5" />
-                            <span>Take at evenly spaced intervals</span>
-                          </li>
-                        </ul>
-                      </div>
-                      
-                      <Alert className="border-amber-200 bg-amber-50">
-                        <AlertCircle className="h-4 w-4 text-amber-600" />
-                        <AlertDescription className="text-amber-800">
-                          <strong>Important:</strong> Complete the full course of treatment even if you feel better. Do not skip doses or stop early without consulting your doctor.
-                        </AlertDescription>
-                      </Alert>
-                      
-                      <div className="p-4 bg-gray-50 rounded-xl">
-                        <h4 className="font-medium mb-3">Missed Dose</h4>
-                        <p className="text-gray-600">
-                          If you miss a dose, take it as soon as you remember. If it's almost time for your next dose, skip the missed dose. Never double up on doses.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </TabsContent>
-
-            {/* Ingredients/Features Tab */}
-            <TabsContent value="ingredients" className="bg-white p-8 rounded-2xl shadow-sm">
-              {isDevice ? (
-                // Device Features
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                  <div>
-                    <h3 className="text-lg font-medium mb-6 text-gray-900">Key Features</h3>
-                    <ul className="space-y-4">
-                      {product.features?.map((feature, index) => (
-                        <li key={index} className="flex items-start">
-                          <CheckCircle className="h-5 w-5 text-green-600 mr-3 mt-0.5 flex-shrink-0" />
-                          <span className="text-gray-700">{feature}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                  
-                  <div>
-                    <h3 className="text-lg font-medium mb-6 text-gray-900">What's Included</h3>
-                    <ul className="space-y-3">
-                      {product.accessories?.map((item, index) => (
-                        <li key={index} className="flex items-center">
-                          <Package className="h-4 w-4 text-gray-400 mr-3" />
-                          <span className="text-gray-700">{item}</span>
-                        </li>
-                      ))}
-                    </ul>
-                    
-                    <div className="mt-8 p-4 bg-blue-50 rounded-xl">
-                      <h4 className="font-medium mb-2">Warranty Information</h4>
-                      <p className="text-gray-700">{product.warranty}</p>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                // Drug Composition
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                  <div>
-                    <h3 className="text-lg font-medium mb-6 text-gray-900">Composition</h3>
-                    
-                    <div className="space-y-6">
-                      <div>
-                        <h4 className="text-sm text-gray-500 uppercase mb-3">Active Ingredient</h4>
-                        <div className="p-4 bg-blue-50 rounded-xl">
-                          <p className="font-medium text-gray-900">{product.activeIngredient}</p>
-                        </div>
-                      </div>
-                      
-                      <div>
-                        <h4 className="text-sm text-gray-500 uppercase mb-3">Inactive Ingredients</h4>
-                        <p className="text-gray-600">{product.inactiveIngredients}</p>
-                      </div>
-                      
-                      <div>
-                        <h4 className="text-sm text-gray-500 uppercase mb-3">Pharmaceutical Form</h4>
-                        <p className="text-gray-700">{product.keyFeatures?.form}</p>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <h3 className="text-lg font-medium mb-6 text-gray-900">Storage & Handling</h3>
-                    
-                    <div className="space-y-4">
-                      <div className="p-4 bg-gray-50 rounded-xl">
-                        <h4 className="font-medium mb-2">Storage Conditions</h4>
-                        <p className="text-gray-600">{product.storage}</p>
-                      </div>
-                      
-                      <div className="p-4 bg-gray-50 rounded-xl">
-                        <h4 className="font-medium mb-2">Shelf Life</h4>
-                        <p className="text-gray-600">{product.shelfLife}</p>
-                      </div>
-                      
-                      <Alert className="border-blue-200 bg-blue-50">
-                        <Info className="h-4 w-4 text-blue-600" />
-                        <AlertDescription className="text-blue-800">
-                          Always check expiry date before use. Do not use if packaging is damaged.
-                        </AlertDescription>
-                      </Alert>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </TabsContent>
-
-            {/* Warnings Tab */}
-            <TabsContent value="warnings" className="bg-white p-8 rounded-2xl shadow-sm">
-              <div className="space-y-8">
-                <div>
-                  <h3 className="text-lg font-medium mb-6 text-gray-900 flex items-center">
-                    <XCircle className="h-6 w-6 text-red-500 mr-2" />
-                    Contraindications
-                  </h3>
-                  <p className="text-gray-600 mb-4">Do not use this {isDevice ? 'device' : 'medication'} if you have:</p>
-                  <ul className="space-y-2">
-                    {product.contraindications?.map((item, index) => (
-                      <li key={index} className="flex items-start pl-6">
-                        <span className="text-red-500 mr-2">•</span>
-                        <span className="text-gray-700">{item}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                
-                <div>
-                  <h3 className="text-lg font-medium mb-6 text-gray-900 flex items-center">
-                    <AlertCircle className="h-6 w-6 text-amber-500 mr-2" />
-                    Warnings & Precautions
-                  </h3>
-                  <ul className="space-y-3">
-                    {product.warnings?.map((warning, index) => (
-                      <li key={index} className="flex items-start">
-                        <AlertCircle className="h-5 w-5 text-amber-500 mr-3 mt-0.5 flex-shrink-0" />
-                        <span className="text-gray-700">{warning}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  
-                  {product.precautions && (
-                    <div className="mt-6 p-4 bg-amber-50 rounded-xl">
-                      <h4 className="font-medium mb-3">Additional Precautions</h4>
-                      <ul className="space-y-2">
-                        {product.precautions.map((precaution, index) => (
-                          <li key={index} className="text-gray-700">• {precaution}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-                
-                {!isDevice && (
-                  <>
-                    <div>
-                      <h3 className="text-lg font-medium mb-6 text-gray-900">Side Effects</h3>
-                      
-                      <div className="space-y-4">
-                        <div>
-                          <h4 className="font-medium mb-2 text-green-700">Common (may affect up to 1 in 10 people)</h4>
-                          <ul className="space-y-1">
-                            {product.sideEffects?.common?.map((effect, index) => (
-                              <li key={index} className="text-gray-600 pl-4">• {effect}</li>
-                            ))}
-                          </ul>
-                        </div>
-                        
-                        <div>
-                          <h4 className="font-medium mb-2 text-amber-700">Uncommon (may affect up to 1 in 100 people)</h4>
-                          <ul className="space-y-1">
-                            {product.sideEffects?.uncommon?.map((effect, index) => (
-                              <li key={index} className="text-gray-600 pl-4">• {effect}</li>
-                            ))}
-                          </ul>
-                        </div>
-                        
-                        <div>
-                          <h4 className="font-medium mb-2 text-red-700">Serious (seek immediate medical attention)</h4>
-                          <ul className="space-y-1">
-                            {product.sideEffects?.serious?.map((effect, index) => (
-                              <li key={index} className="text-gray-600 pl-4">• {effect}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <h3 className="text-lg font-medium mb-6 text-gray-900">Drug Interactions</h3>
-                      <div className="space-y-4">
-                        {product.interactions?.map((interaction, index) => (
-                          <div key={index} className="p-4 bg-gray-50 rounded-xl">
-                            <h4 className="font-medium mb-1">{interaction.drug}</h4>
-                            <p className="text-gray-600 text-sm mb-2">{interaction.effect}</p>
-                            <p className="text-blue-700 text-sm">
-                              <strong>Recommendation:</strong> {interaction.recommendation}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-            </TabsContent>
-
-            {/* FAQ Tab */}
-            <TabsContent value="faq" className="bg-white p-8 rounded-2xl shadow-sm">
-              <div className="max-w-3xl mx-auto">
-                <div className="space-y-6">
-                  {[
-                    {
-                      question: isDevice ? "How accurate is this device?" : "Can I take this medication with other medicines?",
-                      answer: isDevice 
-                        ? "This device is clinically validated and meets international accuracy standards. Regular calibration ensures continued accuracy."
-                        : "Always inform your doctor or pharmacist about all medications you're currently taking, including over-the-counter drugs and supplements. Some medications may interact with each other."
-                    },
-                    {
-                      question: isDevice ? "How often should I replace the device?" : "What should I do if I miss a dose?",
-                      answer: isDevice
-                        ? "With proper care, the device should last 5+ years. Consider replacement if accuracy issues persist after calibration."
-                        : "If you miss a dose, take it as soon as you remember. However, if it's almost time for your next dose, skip the missed dose and continue with your regular schedule. Never double up on doses."
-                    },
-                    {
-                      question: "How should I store this product?",
-                      answer: product.storage || "Store in a cool, dry place away from direct sunlight. Keep out of reach of children."
-                    },
-                    {
-                      question: isDevice ? "Is this device suitable for elderly users?" : "Is this medication safe during pregnancy?",
-                      answer: isDevice
-                        ? "Yes, the large display and one-button operation make it ideal for elderly users. The universal cuff fits most arm sizes."
-                        : `${product.pregnancyCategory}. ${product.lactation}. Always consult your doctor before taking any medication during pregnancy or breastfeeding.`
-                    },
-                    {
-                      question: "What warranty or guarantee comes with this product?",
-                      answer: isDevice
-                        ? `This product comes with a ${product.warranty}. Register your product for warranty coverage.`
-                        : "All medications are 100% authentic and sourced directly from licensed manufacturers. We guarantee product quality until expiry date when stored properly."
-                    },
-                    {
-                      question: "Can I return this product?",
-                      answer: isDevice
-                        ? "Unopened devices can be returned within 30 days. Opened devices can be exchanged if defective within warranty period."
-                        : "Due to pharmaceutical regulations, medications cannot be returned once dispensed. Please verify your order before purchase."
-                    }
-                  ].map((faq, index) => (
-                    <motion.div 
-                      key={index} 
-                      initial={{ opacity: 0, y: 10 }}
-                      whileInView={{ opacity: 1, y: 0 }}
-                      viewport={{ once: true }}
-                      transition={{ duration: 0.3, delay: index * 0.1 }}
-                      className="border-b border-gray-200 pb-6 last:border-0"
-                    >
-                      <h3 className="text-lg font-medium mb-3 text-gray-900">{faq.question}</h3>
-                      <p className="text-gray-600 leading-relaxed">{faq.answer}</p>
-                    </motion.div>
-                  ))}
-                </div>
-                
-                <Alert className="mt-8 border-blue-200 bg-blue-50">
-                  <Phone className="h-5 w-5 text-blue-600" />
-                  <AlertDescription className="text-blue-800">
-                    <strong>Need more help?</strong> Our licensed pharmacists are available 24/7. 
-                    Call <span className="font-medium">1900 6928</span> or use our live chat for immediate assistance.
-                  </AlertDescription>
-                </Alert>
-              </div>
-            </TabsContent>
-          </Tabs>
-        </div>
-      </section>
-
-      {/* Zero Toxics Section - Adapted for Pharmacy */}
-      <section className="py-20 bg-gradient-to-b from-white to-gray-50">
-        <div className="container mx-auto px-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center max-w-6xl mx-auto">
-            <motion.div 
-              initial={{ opacity: 0, x: -20 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6 }}
-              className="space-y-6"
-            >
-              <h2 className="text-3xl md:text-4xl font-light">
-                Quality <span className="italic">assured</span>,
-                <br />
-                Safety <span className="font-normal">guaranteed</span>.
-              </h2>
-              
-              <div className="h-px w-24 bg-gradient-to-r from-gray-400 to-transparent" />
-              
-              <p className="text-gray-600 leading-relaxed">
-                At Long Chau, we ensure every product meets the highest pharmaceutical standards. 
-                From sourcing to delivery, quality and safety are our top priorities.
-              </p>
-
-              <div className="space-y-6 pt-4">
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center flex-shrink-0">
-                    <Shield className="h-6 w-6 text-blue-600" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-medium uppercase mb-1">100% AUTHENTIC PRODUCTS</h3>
-                    <p className="text-gray-600 text-sm">
-                      Direct sourcing from licensed manufacturers, verified with anti-counterfeit measures.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 bg-green-50 rounded-full flex items-center justify-center flex-shrink-0">
-                    <CheckCircle className="h-6 w-6 text-green-600" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-medium uppercase mb-1">QUALITY CONTROLLED</h3>
-                    <p className="text-gray-600 text-sm">
-                      Temperature-controlled storage, regular quality audits, and batch tracking.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 bg-purple-50 rounded-full flex items-center justify-center flex-shrink-0">
-                    <Package className="h-6 w-6 text-purple-600" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-medium uppercase mb-1">SECURE PACKAGING</h3>
-                    <p className="text-gray-600 text-sm">
-                      Tamper-evident seals, protective packaging, and discreet delivery.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 bg-amber-50 rounded-full flex items-center justify-center flex-shrink-0">
-                    <Info className="h-6 w-6 text-amber-600" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-medium uppercase mb-1">COMPLETE INFORMATION</h3>
-                    <p className="text-gray-600 text-sm">
-                      Full prescribing information, clear labeling, and pharmacist consultation available.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-
+            {/* Enhanced Tab Navigation */}
             <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              whileInView={{ opacity: 1, x: 0 }}
+              initial={{ opacity: 0, y: 10 }}
+              whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              transition={{ duration: 0.6 }}
+              transition={{ duration: 0.6, delay: 0.2 }}
             >
-              <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-100 to-green-100 rounded-2xl transform rotate-3"></div>
-                <div className="relative bg-white rounded-2xl p-8 shadow-lg">
-                  <h3 className="text-lg font-medium mb-6">Our Quality Promise</h3>
-                  
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-3">
-                      <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
-                      <span className="text-sm">Licensed by Vietnam Ministry of Health</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
-                      <span className="text-sm">WHO-GMP certified suppliers</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
-                      <span className="text-sm">Cold chain maintained for sensitive products</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
-                      <span className="text-sm">Expiry date guarantee on all products</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
-                      <span className="text-sm">24/7 pharmacist support</span>
-                    </div>
-                  </div>
-                  
-                  <div className="mt-6 pt-6 border-t border-gray-200">
-                    <p className="text-xs text-gray-500">
-                      All pharmaceutical products are stored and handled according to manufacturer specifications 
-                      and Vietnamese pharmaceutical regulations.
-                    </p>
-                  </div>
-                </div>
-              </div>
+              <TabsList className="w-full max-w-md mx-auto bg-white/80 backdrop-blur-sm rounded-2xl p-2 mb-12 shadow-lg border border-gray-100">
+                <TabsTrigger 
+                  value="details" 
+                  className="flex-1 rounded-xl font-medium transition-all duration-300 data-[state=active]:bg-gray-900 data-[state=active]:text-white data-[state=active]:shadow-md"
+                >
+                  <Package className="h-4 w-4 mr-2" />
+                  Details
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="faq" 
+                  className="flex-1 rounded-xl font-medium transition-all duration-300 data-[state=active]:bg-gray-900 data-[state=active]:text-white data-[state=active]:shadow-md"
+                >
+                  <Info className="h-4 w-4 mr-2" />
+                  FAQ
+                </TabsTrigger>
+              </TabsList>
             </motion.div>
-          </div>
-        </div>
-      </section>
 
-      {/* Frequently Bought Together */}
-      <section className="py-20 bg-gray-50">
-        <div className="container mx-auto px-4">
-          <h2 className="text-3xl font-light text-center mb-12">
-            Frequently <span className="italic">bought together</span>
-          </h2>
-          
-          <div className="max-w-4xl mx-auto">
-            <div className="bg-white rounded-2xl p-8 shadow-sm">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                {/* Main Product */}
-                <div className="text-center">
-                  <div className="bg-gray-50 rounded-xl p-6 mb-4">
-                    <img
-                      src={product.image || "/placeholder.svg"}
-                      alt={product.name}
-                      className="w-full h-32 object-contain"
-                    />
-                  </div>
-                  <h4 className="text-sm font-medium mb-1">{product.name}</h4>
-                  <p className="text-gray-900 font-medium">{product.price.toLocaleString('vi-VN')}₫</p>
-                </div>
-                
-                {/* Plus Sign */}
-                <div className="flex items-center justify-center">
-                  <Plus className="h-8 w-8 text-gray-400" />
-                </div>
-                
-                {/* Bundle Products */}
-                <div className="space-y-4">
-                  {product.bundleProducts?.map((bundleProduct, index) => (
-                    <div key={index} className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
-                      <img
-                        src={bundleProduct.image || "/placeholder.svg"}
-                        alt={bundleProduct.name}
-                        className="w-16 h-16 object-contain"
-                      />
-                      <div className="flex-1">
-                        <h5 className="text-sm font-medium">{bundleProduct.name}</h5>
-                        <p className="text-sm text-gray-900">{bundleProduct.price.toLocaleString('vi-VN')}₫</p>
-                      </div>
-                      <input type="checkbox" defaultChecked className="rounded" />
-                    </div>
-                  ))}
-                </div>
-              </div>
-              
-              <div className="border-t pt-6">
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-lg font-medium">Total Bundle Price:</span>
-                  <div className="text-right">
-                    <p className="text-2xl font-medium text-gray-900">
-                      {(product.price + (product.bundleProducts?.reduce((sum, p) => sum + p.price, 0) || 0)).toLocaleString('vi-VN')}₫
-                    </p>
-                    <p className="text-sm text-green-600">Save 10% on bundle</p>
-                  </div>
-                </div>
-                <Button className="w-full rounded-full bg-gray-900 hover:bg-gray-800">
-                  Add Bundle to Cart
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Related Products */}
-      <section className="py-20">
-        <div className="container mx-auto px-4">
-          <h2 className="text-3xl font-light text-center mb-12">
-            <span className="italic">Related</span> Products
-          </h2>
-
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 max-w-6xl mx-auto">
-            {product.relatedProducts?.map((relatedProduct) => (
+            {/* Enhanced Details Tab */}
+            <TabsContent value="details" className="mt-0">
               <motion.div
-                key={relatedProduct.id}
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.4 }}
+                transition={{ duration: 0.6, delay: 0.3 }}
+                className="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden"
               >
-                <Link href={`/shop/${relatedProduct.id}`} className="group block">
-                  <div className="bg-white rounded-xl overflow-hidden border border-gray-100 hover:shadow-lg transition-all">
-                    <div className="bg-gradient-to-br from-gray-50 to-white p-6">
-                      <img
-                        src={relatedProduct.image || "/placeholder.svg"}
-                        alt={relatedProduct.name}
-                        className="w-full h-32 object-contain group-hover:scale-105 transition-transform"
-                      />
-                    </div>
-                    <div className="p-4">
-                      <h3 className="text-sm font-medium mb-2 group-hover:text-blue-600 transition-colors">
-                        {relatedProduct.name}
-                      </h3>
-                      <p className="text-lg font-medium text-gray-900">
-                        {relatedProduct.price.toLocaleString('vi-VN')}₫
-                      </p>
-                    </div>
+                {/* Gradient Header */}
+                <div className="bg-gradient-to-r from-gray-50 via-white to-gray-50 p-8 border-b border-gray-100">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <span className="text-sm uppercase tracking-wider text-gray-500 font-medium">Product Specifications</span>
                   </div>
-                </Link>
+                  <h3 className="font-playfair text-2xl font-light text-gray-900">Detailed Information</h3>
+                </div>
+
+                <div className="p-8">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Product Details Cards */}
+                    {[
+                      {
+                        icon: Package,
+                        title: "Active Ingredient",
+                        content: product.active_ingredient,
+                        color: "blue",
+                        bgGradient: "from-blue-50 to-blue-100/50"
+                      },
+                      {
+                        icon: Info,
+                        title: "Mechanism of Action",
+                        content: product.mechanism_of_action,
+                        color: "purple",
+                        bgGradient: "from-purple-50 to-purple-100/50"
+                      },
+                      {
+                        icon: CheckCircle,
+                        title: "Indications",
+                        content: product.indications,
+                        color: "green",
+                        bgGradient: "from-green-50 to-green-100/50"
+                      },
+                      {
+                        icon: Package,
+                        title: "Storage Instructions",
+                        content: product.storage,
+                        color: "amber",
+                        bgGradient: "from-amber-50 to-amber-100/50"
+                      },
+                      {
+                        icon: Shield,
+                        title: "Warranty & Quality",
+                        content: product.warranty,
+                        color: "violet",
+                        bgGradient: "from-violet-50 to-violet-100/50"
+                      },
+                      {
+                        icon: Info,
+                        title: "Pregnancy Category",
+                        content: product.pregnancy_category,
+                        color: "pink",
+                        bgGradient: "from-pink-50 to-pink-100/50"
+                      }
+                    ].filter(item => item.content).map((item, index) => (
+                      <motion.div
+                        key={index}
+                        initial={{ opacity: 0, y: 15 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true }}
+                        transition={{ duration: 0.5, delay: index * 0.1 }}
+                        className="group cursor-pointer"
+                      >
+                        <div className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${item.bgGradient} border border-gray-100 hover:shadow-lg transition-all duration-300 group-hover:scale-[1.02]`}>
+                          <div className="p-6">
+                            <div className="flex items-start gap-4">
+                              <div className={`flex-shrink-0 w-12 h-12 rounded-xl bg-white shadow-sm flex items-center justify-center text-${item.color}-600 group-hover:scale-110 transition-transform duration-300`}>
+                                <item.icon className="h-6 w-6" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <h4 className="font-semibold text-gray-900 mb-2 group-hover:text-gray-800 transition-colors">
+                                  {item.title}
+                                </h4>
+                                <p className="text-gray-700 leading-relaxed text-sm">
+                                  {item.content}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                          {/* Subtle hover effect line */}
+                          <div className={`absolute bottom-0 left-0 h-1 bg-gradient-to-r from-${item.color}-400 to-${item.color}-600 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left`}></div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+
+                  {/* Additional Information Section */}
+                  {(product.lactation || product.pregnancy_category) && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ duration: 0.6, delay: 0.5 }}
+                      className="mt-8 p-6 bg-gradient-to-r from-gray-50 to-gray-100/50 rounded-2xl border border-gray-200"
+                    >
+                      <div className="flex items-center gap-3 mb-4">
+                        <Info className="h-5 w-5 text-pink-600" />
+                        <h4 className="font-semibold text-gray-900">Special Considerations</h4>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {product.pregnancy_category && (
+                          <div className="flex items-start gap-3">
+                            <div className="w-2 h-2 bg-pink-400 rounded-full mt-2 flex-shrink-0"></div>
+                            <div>
+                              <span className="font-medium text-gray-900">Pregnancy:</span>
+                              <span className="text-gray-700 ml-2">{product.pregnancy_category}</span>
+                            </div>
+                          </div>
+                        )}
+                        {product.lactation && (
+                          <div className="flex items-start gap-3">
+                            <div className="w-2 h-2 bg-pink-400 rounded-full mt-2 flex-shrink-0"></div>
+                            <div>
+                              <span className="font-medium text-gray-900">Lactation:</span>
+                              <span className="text-gray-700 ml-2">{product.lactation}</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </div>
               </motion.div>
-            ))}
-          </div>
-          
-          <div className="text-center mt-12">
-            <Link href="/shop">
-              <Button variant="outline" className="rounded-full">
-                View All Products
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            </Link>
-          </div>
+            </TabsContent>
+
+            {/* Enhanced FAQ Tab */}
+            <TabsContent value="faq" className="mt-0">
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.6, delay: 0.3 }}
+                className="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden"
+              >
+                {/* Gradient Header */}
+                <div className="bg-gradient-to-r from-blue-50 via-white to-blue-50 p-8 border-b border-gray-100">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                    <span className="text-sm uppercase tracking-wider text-gray-500 font-medium">Frequently Asked</span>
+                  </div>
+                  <h3 className="font-playfair text-2xl font-light text-gray-900">Questions & Answers</h3>
+                </div>
+
+                <div className="p-8">
+                  <div className="space-y-6">
+                    {[
+                      { 
+                        icon: Package,
+                        question: "How should I store this product?", 
+                        answer: product.storage || "Store in a cool, dry place away from direct sunlight. Keep out of reach of children.",
+                        color: "emerald"
+                      },
+                      { 
+                        icon: Shield,
+                        question: "Is this medication safe during pregnancy?", 
+                        answer: product.pregnancy_category || "Consult your doctor before use during pregnancy.",
+                        color: "rose"
+                      },
+                      { 
+                        icon: Info,
+                        question: "Is this medication safe during breastfeeding?", 
+                        answer: product.lactation || "Consult your doctor before use while breastfeeding.",
+                        color: "violet"
+                      },
+                      { 
+                        icon: CheckCircle,
+                        question: "What warranty or guarantee comes with this product?", 
+                        answer: product.warranty || "All medications are 100% authentic and sourced directly from licensed manufacturers. We guarantee product quality until expiry date when stored properly.",
+                        color: "blue"
+                      },
+                    ].map((faq, index) => (
+                      <motion.div
+                        key={index}
+                        initial={{ opacity: 0, x: -20 }}
+                        whileInView={{ opacity: 1, x: 0 }}
+                        viewport={{ once: true }}
+                        transition={{ duration: 0.5, delay: index * 0.1 }}
+                        className="group"
+                      >
+                        <div className="relative overflow-hidden rounded-2xl border border-gray-100 hover:shadow-lg transition-all duration-300 group-hover:border-gray-200">
+                          <div className="p-6">
+                            <div className="flex items-start gap-4">
+                              <div className={`flex-shrink-0 w-10 h-10 rounded-xl bg-${faq.color}-50 flex items-center justify-center text-${faq.color}-600 group-hover:bg-${faq.color}-100 transition-colors duration-300`}>
+                                <faq.icon className="h-5 w-5" />
+                              </div>
+                              <div className="flex-1">
+                                <h4 className="text-lg font-semibold mb-3 text-gray-900 group-hover:text-gray-800 transition-colors">
+                                  {faq.question}
+                                </h4>
+                                <p className="text-gray-600 leading-relaxed">
+                                  {faq.answer}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                          <div className={`absolute bottom-0 left-0 h-1 bg-gradient-to-r from-${faq.color}-400 to-${faq.color}-600 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left`}></div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+
+                  {/* Enhanced Contact Section */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ duration: 0.6, delay: 0.6 }}
+                    className="mt-8 relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-50 via-white to-blue-50 border border-blue-100"
+                  >
+                    <div className="absolute inset-0 bg-grid-slate-100 [mask-image:linear-gradient(0deg,white,rgba(255,255,255,0.6))] opacity-20"></div>
+                    <div className="relative p-8">
+                      <div className="flex items-start gap-6">
+                        <div className="flex-shrink-0 w-16 h-16 rounded-2xl bg-blue-500 flex items-center justify-center shadow-lg">
+                          <Phone className="h-8 w-8 text-white" />
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="text-xl font-semibold text-gray-900 mb-2">
+                            Need Expert Advice?
+                          </h4>
+                          <p className="text-gray-600 mb-4 leading-relaxed">
+                            Our licensed pharmacists are available 24/7 to provide personalized guidance and answer your questions.
+                          </p>
+                          <div className="flex flex-wrap gap-3">
+                            <div className="inline-flex items-center gap-2 bg-white px-4 py-2 rounded-xl border border-gray-200 shadow-sm">
+                              <Phone className="h-4 w-4 text-blue-600" />
+                              <span className="font-medium text-gray-900">1900 6928</span>
+                            </div>
+                            <div className="inline-flex items-center gap-2 bg-white px-4 py-2 rounded-xl border border-gray-200 shadow-sm">
+                              <MessageCircle className="h-4 w-4 text-green-600" />
+                              <span className="font-medium text-gray-900">Live Chat</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                </div>
+              </motion.div>
+            </TabsContent>
+          </Tabs>
         </div>
       </section>
     </div>

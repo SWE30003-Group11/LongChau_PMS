@@ -18,65 +18,34 @@ import { supabase } from "@/lib/supabase/client"
 import { useCart } from "@/hooks/use-cart"
 import Link from "next/link"
 
+// Helper function to get product image URL from storage
+function getProductImageUrl(productName: string): string {
+  const { data } = supabase.storage.from('product-images').getPublicUrl(`${productName}.png`)
+  return data.publicUrl
+}
+
+interface Product {
+  id: number
+  name: string
+  generic_name?: string
+  price: number
+  original_price?: number | null
+  category?: string | null
+  prescription_required?: boolean
+  in_stock?: boolean
+  manufacturer?: string | null
+  pack_size?: string | null
+  strength?: string | null
+  description?: string | null
+}
+
 interface FavoriteProduct {
   id: string
   user_id: string
   product_id: number
   created_at: string
-  product?: {
-    id: number
-    name: string
-    price: number
-    image: string
-    category: string
-    description?: string
-    prescription_required?: boolean
-  }
+  product: Product | null
 }
-
-// Mock product data - In a real app, this would come from your products table
-const mockProducts = [
-  {
-    id: 1,
-    name: "AHA BRIGHTENING EXFOLIANT CLEANSER",
-    price: 899000,
-    image: "/products/cleanser-1.jpg",
-    category: "PURE BRILLIANCE",
-    prescription_required: false
-  },
-  {
-    id: 2,
-    name: "BIO EXFOLIANT BRIGHTENING SLEEPING MASK",
-    price: 899000,
-    image: "/products/mask-1.jpg",
-    category: "PURE BRILLIANCE",
-    prescription_required: false
-  },
-  {
-    id: 3,
-    name: "VITAMIN C BRIGHTENING SERUM",
-    price: 999000,
-    image: "/products/serum-1.jpg",
-    category: "DAILY DEW",
-    prescription_required: false
-  },
-  {
-    id: 4,
-    name: "HYALURONIC ACID HYDRATING SERUM",
-    price: 999000,
-    image: "/products/serum-2.jpg",
-    category: "DAILY DEW",
-    prescription_required: false
-  },
-  {
-    id: 5,
-    name: "PRESCRIPTION PAIN RELIEF",
-    price: 150000,
-    image: "/products/medicine-1.jpg",
-    category: "MEDICINE",
-    prescription_required: true
-  }
-]
 
 export default function FavoritesPage() {
   const { user } = useAuth()
@@ -96,19 +65,17 @@ export default function FavoritesPage() {
     try {
       const { data, error } = await supabase
         .from('favorite_products')
-        .select('*')
+        .select('id, user_id, product_id, created_at, product:products(*)')
         .eq('user_id', user!.id)
         .order('created_at', { ascending: false })
 
       if (error) throw error
-      
-      // Map with mock product data
-      const favoritesWithProducts = (data || []).map(fav => ({
+      // Defensive: if product is array, take first element
+      const favoritesWithProduct = ((data as unknown) as any[]).map((fav: any) => ({
         ...fav,
-        product: mockProducts.find(p => p.id === fav.product_id)
+        product: Array.isArray(fav.product) ? fav.product[0] : fav.product
       }))
-      
-      setFavorites(favoritesWithProducts)
+      setFavorites(favoritesWithProduct as FavoriteProduct[])
     } catch (error) {
       console.error('Error fetching favorites:', error)
     } finally {
@@ -118,17 +85,14 @@ export default function FavoritesPage() {
 
   const handleRemoveFavorite = async (favoriteId: string, productName: string) => {
     if (!confirm(`Remove ${productName} from favorites?`)) return
-
     setRemoving(favoriteId)
     try {
       const { error } = await supabase
         .from('favorite_products')
         .delete()
         .eq('id', favoriteId)
-
       if (error) throw error
-      
-      setFavorites(favorites.filter(f => f.id !== favoriteId))
+      setFavorites(favorites => favorites.filter(f => f.id !== favoriteId))
     } catch (error) {
       console.error('Error removing favorite:', error)
     } finally {
@@ -146,7 +110,7 @@ export default function FavoritesPage() {
       id: product.id,
       name: product.name,
       price: product.price,
-      image: product.image,
+      image: getProductImageUrl(product.name),
       quantity: 1
     })
   }
@@ -211,7 +175,14 @@ export default function FavoritesPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {favorites.map((favorite) => {
                 const product = favorite.product
-                if (!product) return null
+                if (!product) return (
+                  <div key={favorite.id} className="group">
+                    <div className="bg-white rounded-lg overflow-hidden shadow-sm p-6 flex flex-col items-center justify-center text-gray-400">
+                      <X className="h-8 w-8 mb-2" />
+                      <div className="text-sm">Product not found</div>
+                    </div>
+                  </div>
+                )
 
                 return (
                   <div key={favorite.id} className="group">
@@ -220,7 +191,7 @@ export default function FavoritesPage() {
                         <Link href={`/shop/${product.id}`}>
                           <div className="aspect-w-1 aspect-h-1 bg-gray-100">
                             <img
-                              src={product.image || "/placeholder.svg"}
+                              src={getProductImageUrl(product.name) || "/placeholder.svg"}
                               alt={product.name}
                               className="w-full h-64 object-cover"
                             />
@@ -237,28 +208,27 @@ export default function FavoritesPage() {
                             <X className="h-5 w-5" />
                           )}
                         </button>
-                        <Badge 
-                          className="absolute top-2 left-2 bg-white text-gray-800"
-                          variant="secondary"
-                        >
-                          {product.category}
-                        </Badge>
+                        {product.category && (
+                          <Badge 
+                            className="absolute top-2 left-2 bg-white text-gray-800"
+                            variant="secondary"
+                          >
+                            {product.category}
+                          </Badge>
+                        )}
                       </div>
-                      
                       <div className="p-4">
                         <h3 className="font-medium text-sm mb-2 line-clamp-2">
                           {product.name}
                         </h3>
                         <p className="text-lg font-semibold mb-3">
-                          {product.price.toLocaleString('vi-VN')}₫
+                          {typeof product.price === 'number' ? product.price.toLocaleString('vi-VN') : '-'}₫
                         </p>
-                        
                         {product.prescription_required && (
                           <Badge variant="outline" className="mb-3 text-xs">
                             Prescription Required
                           </Badge>
                         )}
-                        
                         <div className="flex space-x-2">
                           <Button
                             size="sm"

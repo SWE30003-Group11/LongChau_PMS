@@ -12,58 +12,19 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { motion, AnimatePresence } from "framer-motion"
 import { useCart } from "@/hooks/use-cart"
 import { cn } from "@/lib/utils"
-
-// Real Long Chau pharmacy locations
-const pharmacyLocations = [
-  {
-    id: 1,
-    name: "Long Chau - Hai Ba Trung HQ",
-    address: "379-381 Hai Ba Trung, Vo Thi Sau Ward, District 3",
-    phone: "1800 6928",
-    hours: "7:00 AM - 10:00 PM",
-    is24h: false,
-    isHeadquarters: true,
-    estimatedTime: "Ready in 30 minutes"
-  },
-  {
-    id: 2,
-    name: "Long Chau - Nguyen Trai",
-    address: "123 Nguyen Trai, Nguyen Cu Trinh Ward, District 1",
-    phone: "1800 6928",
-    hours: "24/7",
-    is24h: true,
-    estimatedTime: "Ready in 20 minutes"
-  },
-  {
-    id: 3,
-    name: "Long Chau - Pham Ngu Lao",
-    address: "185 Pham Ngu Lao, Pham Ngu Lao Ward, District 1",
-    phone: "1800 6928",
-    hours: "24/7",
-    is24h: true,
-    estimatedTime: "Ready in 25 minutes"
-  },
-  {
-    id: 4,
-    name: "Long Chau - District 7",
-    address: "S2.01 SC Vivo City, 1058 Nguyen Van Linh, Tan Phong Ward, District 7",
-    phone: "1800 6928",
-    hours: "8:00 AM - 10:00 PM",
-    is24h: false,
-    estimatedTime: "Ready in 45 minutes"
-  },
-  {
-    id: 5,
-    name: "Long Chau - Bach Dang",
-    address: "161 Bach Dang, Ward 2, Tan Binh District",
-    phone: "1800 6928",
-    hours: "24/7",
-    is24h: true,
-    estimatedTime: "Ready in 35 minutes"
-  }
-]
+import { supabase } from "@/lib/supabase/client"
+import { useEffect } from "react"
 
 export default function CheckoutPage() {
+  // Dynamic branches from Supabase
+  const [branches, setBranches] = useState<any[]>([])
+  useEffect(() => {
+    async function fetchBranches() {
+      const { data, error } = await supabase.from('branches').select('*').order('id')
+      if (!error && data) setBranches(data)
+    }
+    fetchBranches()
+  }, [])
   const { cart, clearCart } = useCart()
   const [step, setStep] = useState(1)
   const [fulfillmentMethod, setFulfillmentMethod] = useState<"pickup" | "delivery">("pickup")
@@ -161,6 +122,74 @@ export default function CheckoutPage() {
     clearCart()
   }
   
+  // Add a state to store the last order id
+  const [lastOrderId, setLastOrderId] = useState<string | null>(null)
+  const [user, setUser] = useState<any>(null)
+  const [profile, setProfile] = useState<any>(null)
+  const [savedAddresses, setSavedAddresses] = useState<any[]>([])
+  const [selectedSavedAddress, setSelectedSavedAddress] = useState<string>("")
+  const [saveNewAddress, setSaveNewAddress] = useState(false)
+
+  useEffect(() => {
+    async function fetchUserAndProfile() {
+      const { data: { user } } = await supabase.auth.getUser()
+      setUser(user)
+      if (user?.id) {
+        const { data: profileData } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+        setProfile(profileData)
+        const { data: addresses } = await supabase.from('saved_addresses').select('*').eq('user_id', user.id)
+        setSavedAddresses(addresses || [])
+      }
+    }
+    fetchUserAndProfile()
+  }, [])
+
+  useEffect(() => {
+    // Auto-fill customer info if profile is loaded
+    if (profile) {
+      setCustomerInfo((info) => ({
+        ...info,
+        fullName: profile.full_name || info.fullName,
+        phone: profile.phone || info.phone,
+        email: profile.email || info.email,
+      }))
+    }
+  }, [profile])
+
+  useEffect(() => {
+    // If a saved address is selected, auto-fill address
+    if (selectedSavedAddress && selectedSavedAddress !== 'new') {
+      const addr = savedAddresses.find(a => a.id === selectedSavedAddress)
+      if (addr) {
+        setCustomerInfo((info) => ({ ...info, address: addr.address }))
+      }
+    }
+  }, [selectedSavedAddress, savedAddresses])
+  
+  // State to hold inventory for all cart items at all branches
+  const [branchStock, setBranchStock] = useState<Record<number, Record<number, number>>>({}) // {branchId: {productId: quantity}}
+
+  // Fetch inventory for all cart items at all branches
+  useEffect(() => {
+    async function fetchBranchStock() {
+      if (cart.length === 0) return
+      const productIds = cart.map(item => item.id)
+      const { data, error } = await supabase
+        .from('inventory')
+        .select('branch_id, product_id, quantity')
+        .in('product_id', productIds)
+      if (!error && data) {
+        const stockMap: Record<number, Record<number, number>> = {}
+        data.forEach((row: any) => {
+          if (!stockMap[row.branch_id]) stockMap[row.branch_id] = {}
+          stockMap[row.branch_id][row.product_id] = row.quantity
+        })
+        setBranchStock(stockMap)
+      }
+    }
+    fetchBranchStock()
+  }, [cart, branches])
+  
   // Handle order submission
   const handlePlaceOrder = async () => {
     // Validate required fields
@@ -169,12 +198,12 @@ export default function CheckoutPage() {
       return
     }
     
-    if (fulfillmentMethod === "pickup" && !selectedBranch) {
+    if (fulfillmentMethod === 'pickup' && !selectedBranch) {
       alert("Please select a pickup branch")
       return
     }
     
-    if (fulfillmentMethod === "delivery" && !customerInfo.address) {
+    if (fulfillmentMethod === 'delivery' && !customerInfo.address) {
       alert("Please enter delivery address")
       return
     }
@@ -202,12 +231,137 @@ export default function CheckoutPage() {
       return
     }
     
+    // Check inventory before placing order (for pickup)
+    if (fulfillmentMethod === 'pickup') {
+      for (const item of cart) {
+        const qty = branchStock[Number(selectedBranch)]?.[item.id] ?? 0
+        if (qty < item.quantity) {
+          alert(`Not enough stock for ${item.name} at this branch. Please adjust your cart or choose another branch.`)
+          return
+        }
+      }
+    }
+    // Simulate order creation
+    const orderInsert = await supabase.from('orders').insert({
+      user_id: user?.id,
+      order_number: `LC${Date.now()}`,
+      status: 'pending',
+      total_amount: total,
+      payment_method: paymentMethod,
+      payment_status: paymentMethod === 'cash' ? 'pending' : 'paid',
+      fulfillment_method: fulfillmentMethod,
+      branch_id: fulfillmentMethod === 'pickup' ? Number(selectedBranch) : null,
+      delivery_address: fulfillmentMethod === 'delivery' ? customerInfo.address : null,
+      notes: customerInfo.notes,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }).select('id').single()
+    if (orderInsert.error || !orderInsert.data) {
+      alert('Failed to create order. Please try again.')
+      return
+    }
+    const orderId = orderInsert.data.id
+    setLastOrderId(orderId)
+    // Insert order items
+    const orderItems = cart.map(item => ({
+      order_id: orderId,
+      product_id: item.id,
+      product_name: item.name,
+      quantity: item.quantity,
+      unit_price: item.price,
+      prescription_required: !!item.prescriptionRequired
+    }))
+    const { error: orderItemsError } = await supabase.from('order_items').insert(orderItems)
+    if (orderItemsError) {
+      alert('Failed to record order items. Please contact support.')
+      return
+    }
+    // Subtract inventory for pickup orders
+    if (fulfillmentMethod === 'pickup') {
+      for (const item of cart) {
+        const branchId = Number(selectedBranch)
+        const qty = branchStock[branchId]?.[item.id] ?? 0
+        const newQty = qty - item.quantity
+        // Find inventory row id
+        const { data: invRows, error: invErr } = await supabase
+          .from('inventory')
+          .select('id')
+          .eq('branch_id', branchId)
+          .eq('product_id', item.id)
+          .single()
+        if (invErr || !invRows) {
+          alert(`Failed to update inventory for ${item.name}. Please contact support.`)
+          return
+        }
+        const { error: updateErr } = await supabase
+          .from('inventory')
+          .update({ quantity: newQty, updated_at: new Date().toISOString() })
+          .eq('id', invRows.id)
+        if (updateErr) {
+          alert(`Failed to update inventory for ${item.name}. Please contact support.`)
+          return
+        }
+      }
+    }
+    // Insert payment record
+    const paymentInsert = await supabase.from('payments').insert({
+      order_id: orderId,
+      payment_method: paymentMethod,
+      amount: total,
+      status: paymentMethod === 'cash' ? 'pending' : 'paid',
+      paid_at: paymentMethod === 'cash' ? null : new Date().toISOString(),
+      created_at: new Date().toISOString(),
+    })
+    if (paymentInsert.error) {
+      alert('Failed to create payment record. Please try again.')
+      return
+    }
+    // Always insert delivery record if delivery
+    if (fulfillmentMethod === 'delivery') {
+      console.log('DELIVERY DEBUG:')
+      console.log('User:', user)
+      console.log('OrderId:', orderId)
+      console.log('delivery_address:', customerInfo.address)
+      console.log('delivery_method:', 'standard')
+      console.log('status:', 'pending')
+      console.log('created_at:', new Date().toISOString())
+      if (!user?.id) console.error('User ID is missing!')
+      if (!orderId) console.error('Order ID is missing!')
+      if (!customerInfo.address) console.error('Delivery address is missing!')
+      const deliveryInsert = await supabase.from('deliveries').insert({
+        order_id: orderId,
+        delivery_address: customerInfo.address,
+        delivery_method: 'standard',
+        status: 'pending',
+        created_at: new Date().toISOString(),
+      })
+      if (deliveryInsert.error) {
+        console.error('Delivery insert error:', deliveryInsert.error)
+        alert('Failed to create delivery record. Error: ' + deliveryInsert.error.message)
+        return
+      } else {
+        console.log('Delivery insert success:', deliveryInsert)
+      }
+    }
     // Process payment
     if (paymentMethod === "cash") {
       setOrderPlaced(true)
       clearCart()
     } else {
       await processPayment()
+    }
+
+    if (fulfillmentMethod === 'delivery' && saveNewAddress && user?.id && customerInfo.address) {
+      const alreadyExists = savedAddresses.some(addr => addr.address === customerInfo.address)
+      if (!alreadyExists) {
+        await supabase.from('saved_addresses').insert({
+          user_id: user.id,
+          label: 'Saved Address',
+          address: customerInfo.address,
+          is_default: false,
+          created_at: new Date().toISOString(),
+        })
+      }
     }
   }
   
@@ -246,7 +400,7 @@ export default function CheckoutPage() {
             <p className="text-gray-600 mb-2">Thank you for your order. Order number: #LC{Date.now()}</p>
             <p className="text-gray-600 mb-8">
               {fulfillmentMethod === "pickup" 
-                ? `Your order will be ready for pickup at ${pharmacyLocations.find(loc => loc.id.toString() === selectedBranch)?.name}`
+                ? `Your order will be ready for pickup at ${branches.find((loc: any) => loc.id.toString() === selectedBranch)?.name}`
                 : "Your order will be delivered to your address within 2-3 hours"
               }
             </p>
@@ -479,31 +633,41 @@ export default function CheckoutPage() {
                       <Label>Select Pickup Branch</Label>
                       <RadioGroup value={selectedBranch} onValueChange={setSelectedBranch}>
                         <div className="space-y-3 mt-3">
-                          {pharmacyLocations.map((location) => (
-                            <label key={location.id} className="flex items-start gap-3 p-4 border rounded-lg cursor-pointer hover:bg-gray-50">
-                              <RadioGroupItem value={location.id.toString()} />
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <span className="font-medium">{location.name}</span>
-                                  {location.is24h && (
-                                    <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">24/7</span>
-                                  )}
+                          {branches.map((location: any) => {
+                            // For each branch, check if all cart items are in stock
+                            const allInStock = cart.every(item => {
+                              const qty = branchStock[location.id]?.[item.id] ?? 0
+                              return qty >= item.quantity
+                            })
+                            return (
+                              <label key={location.id} className={`flex items-start gap-3 p-4 border rounded-lg cursor-pointer ${!allInStock ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50'}`}
+                                style={{ pointerEvents: allInStock ? 'auto' : 'none' }}>
+                                <RadioGroupItem value={location.id.toString()} disabled={!allInStock} />
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className="font-medium">{location.name}</span>
+                                  </div>
+                                  <p className="text-sm text-gray-600 mb-1">{location.address}</p>
+                                  <div className="flex flex-col gap-1 text-xs text-gray-500">
+                                    {cart.map(item => {
+                                      const qty = branchStock[location.id]?.[item.id] ?? 0
+                                      return (
+                                        <span key={item.id} className={qty < item.quantity ? 'text-red-600' : ''}>
+                                          {item.name}: {qty} in stock {qty < item.quantity && '(not enough stock)'}
+                                        </span>
+                                      )
+                                    })}
+                                  </div>
+                                  <div className="flex items-center gap-4 text-xs text-gray-500 mt-1">
+                                    <span className="flex items-center gap-1">
+                                      <Phone className="h-3 w-3" />
+                                      {location.phone}
+                                    </span>
+                                  </div>
                                 </div>
-                                <p className="text-sm text-gray-600 mb-1">{location.address}</p>
-                                <div className="flex items-center gap-4 text-xs text-gray-500">
-                                  <span className="flex items-center gap-1">
-                                    <Clock className="h-3 w-3" />
-                                    {location.hours}
-                                  </span>
-                                  <span className="flex items-center gap-1">
-                                    <Phone className="h-3 w-3" />
-                                    {location.phone}
-                                  </span>
-                                </div>
-                                <p className="text-sm text-green-600 mt-1">{location.estimatedTime}</p>
-                              </div>
-                            </label>
-                          ))}
+                              </label>
+                            )
+                          })}
                         </div>
                       </RadioGroup>
                     </div>
@@ -513,14 +677,42 @@ export default function CheckoutPage() {
                   {fulfillmentMethod === "delivery" && (
                     <div className="mt-6">
                       <Label htmlFor="address">Delivery Address *</Label>
-                      <Textarea
-                        id="address"
-                        placeholder="Enter your full delivery address"
-                        value={customerInfo.address}
-                        onChange={(e) => setCustomerInfo({...customerInfo, address: e.target.value})}
-                        className="mt-2"
-                        rows={3}
-                      />
+                      {savedAddresses.length > 0 && (
+                        <select
+                          className="w-full rounded-full border border-gray-200 px-4 py-2 mb-2"
+                          value={selectedSavedAddress}
+                          onChange={e => setSelectedSavedAddress(e.target.value)}
+                        >
+                          <option value="">Choose a saved address</option>
+                          {savedAddresses.map(addr => (
+                            <option key={addr.id} value={addr.id}>{addr.label || addr.address}</option>
+                          ))}
+                          <option value="new">Enter new address</option>
+                        </select>
+                      )}
+                      {(selectedSavedAddress === 'new' || savedAddresses.length === 0 || !selectedSavedAddress) && (
+                        <>
+                          <Textarea
+                            id="address"
+                            placeholder="Enter your full delivery address"
+                            value={customerInfo.address}
+                            onChange={(e) => setCustomerInfo({...customerInfo, address: e.target.value})}
+                            className="mt-2"
+                            rows={3}
+                          />
+                          {user?.id && (
+                            <label className="flex items-center gap-2 mt-2 text-sm">
+                              <input
+                                type="checkbox"
+                                checked={saveNewAddress}
+                                onChange={e => setSaveNewAddress(e.target.checked)}
+                                className="rounded"
+                              />
+                              Save this address to my account
+                            </label>
+                          )}
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
@@ -703,7 +895,7 @@ export default function CheckoutPage() {
                             "p-4 border-2 rounded-lg text-center transition-all",
                             selectedWallet === "momo" ? "border-pink-500 bg-pink-50" : "border-gray-200"
                           )}>
-                            <img src="/wallet-icons/momo.png" alt="MoMo" className="h-12 mx-auto mb-2" />
+                            <img src="/payments/momopay.png" alt="MoMo" className="h-12 mx-auto mb-2" />
                             <span className="text-sm font-medium">MoMo</span>
                           </div>
                         </label>
@@ -714,7 +906,7 @@ export default function CheckoutPage() {
                             "p-4 border-2 rounded-lg text-center transition-all",
                             selectedWallet === "zalopay" ? "border-blue-500 bg-blue-50" : "border-gray-200"
                           )}>
-                            <img src="/wallet-icons/zalopay.png" alt="ZaloPay" className="h-12 mx-auto mb-2" />
+                            <img src="/payments/zalopay.png" alt="ZaloPay" className="h-12 mx-auto mb-2" />
                             <span className="text-sm font-medium">ZaloPay</span>
                           </div>
                         </label>
@@ -725,7 +917,7 @@ export default function CheckoutPage() {
                             "p-4 border-2 rounded-lg text-center transition-all",
                             selectedWallet === "vnpay" ? "border-red-500 bg-red-50" : "border-gray-200"
                           )}>
-                            <img src="/wallet-icons/vnpay.png" alt="VNPay" className="h-12 mx-auto mb-2" />
+                            <img src="/payments/vnpay.jpg" alt="VNPay" className="h-12 mx-auto mb-2" />
                             <span className="text-sm font-medium">VNPay</span>
                           </div>
                         </label>

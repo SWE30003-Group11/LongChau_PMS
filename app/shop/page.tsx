@@ -5,124 +5,59 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { useCart } from "@/hooks/use-cart"
+import { useState, useEffect } from "react"
+import { supabase } from "@/lib/supabase/client"
 
-// Mock pharmacy product data
-const products = [
-  {
-    id: 1,
-    name: "Paracetamol 500mg",
-    genericName: "Acetaminophen",
-    price: 25000,
-    originalPrice: 30000,
-    image: "/products/paracetamol.jpg",
-    category: "Pain Relief",
-    prescriptionRequired: false,
-    inStock: true,
-    manufacturer: "DHG Pharma",
-  },
-  {
-    id: 2,
-    name: "Amoxicillin 500mg",
-    genericName: "Amoxicillin",
-    price: 85000,
-    image: "/products/amoxicillin.jpg",
-    category: "Antibiotics",
-    prescriptionRequired: true,
-    inStock: true,
-    manufacturer: "Imexpharm",
-  },
-  {
-    id: 3,
-    name: "Vitamin C 1000mg",
-    genericName: "Ascorbic Acid",
-    price: 45000,
-    originalPrice: 50000,
-    image: "/products/vitaminc.jpg",
-    category: "Vitamins & Supplements",
-    prescriptionRequired: false,
-    inStock: true,
-    manufacturer: "Blackmores",
-  },
-  {
-    id: 4,
-    name: "Omeprazole 20mg",
-    genericName: "Omeprazole",
-    price: 120000,
-    image: "/products/omeprazole.jpg",
-    category: "Digestive Health",
-    prescriptionRequired: true,
-    inStock: false,
-    manufacturer: "OPV",
-  },
-  {
-    id: 5,
-    name: "Cetirizine 10mg",
-    genericName: "Cetirizine Hydrochloride",
-    price: 35000,
-    image: "/products/cetirizine.jpg",
-    category: "Allergy & Respiratory",
-    prescriptionRequired: false,
-    inStock: true,
-    manufacturer: "Domesco",
-  },
-  {
-    id: 6,
-    name: "Blood Pressure Monitor",
-    price: 850000,
-    originalPrice: 1000000,
-    image: "/products/bp-monitor.jpg",
-    category: "Medical Devices",
-    prescriptionRequired: false,
-    inStock: true,
-    manufacturer: "Omron",
-  },
-  {
-    id: 7,
-    name: "N95 Face Masks (Box of 20)",
-    price: 150000,
-    image: "/products/n95-masks.jpg",
-    category: "Personal Protection",
-    prescriptionRequired: false,
-    inStock: true,
-    manufacturer: "3M",
-  },
-  {
-    id: 8,
-    name: "Hand Sanitizer 500ml",
-    price: 45000,
-    image: "/products/sanitizer.jpg",
-    category: "Personal Protection",
-    prescriptionRequired: false,
-    inStock: true,
-    manufacturer: "Purell",
-  },
-  {
-    id: 9,
-    name: "Multivitamin Complex",
-    price: 280000,
-    image: "/products/multivitamin.jpg",
-    category: "Vitamins & Supplements",
-    prescriptionRequired: false,
-    inStock: true,
-    manufacturer: "Centrum",
-  },
-]
+// Helper function to get product image URL from storage
+function getProductImageUrl(productName: string): string {
+  const { data } = supabase.storage.from('product-images').getPublicUrl(`${productName}.png`)
+  return data.publicUrl
+}
 
-// Group products by category
-const productsByCategory = products.reduce(
-  (acc, product) => {
-    if (!acc[product.category]) {
-      acc[product.category] = []
-    }
-    acc[product.category].push(product)
-    return acc
-  },
-  {} as Record<string, typeof products>,
-)
+// Define Product type for Supabase data
+interface Product {
+  id: number
+  name: string
+  generic_name?: string
+  price: number
+  original_price?: number | null
+  category?: string | null
+  prescription_required?: boolean
+  in_stock?: boolean
+  manufacturer?: string | null
+  inventory?: { quantity: number }[]
+}
 
 export default function ShopPage() {
   const { addToCart } = useCart()
-  
+  const [products, setProducts] = useState<Product[]>([])
+  const [loading, setLoading] = useState(true)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [sort, setSort] = useState("featured")
+  const productsPerPage = 9
+
+  useEffect(() => {
+    async function fetchProducts() {
+      setLoading(true)
+      let query = supabase.from("products").select("*, inventory:inventory(quantity)")
+      if (sort === "price-asc") query = query.order("price", { ascending: true })
+      else if (sort === "price-desc") query = query.order("price", { ascending: false })
+      else if (sort === "name-asc") query = query.order("name", { ascending: true })
+      else query = query.order("id", { ascending: false }) // featured
+      const { data, error } = await query
+      if (!error) setProducts((data as Product[]) || [])
+      setLoading(false)
+    }
+    fetchProducts()
+    setCurrentPage(1) // Reset to page 1 on sort change
+  }, [sort])
+
+  const totalPages = Math.ceil(products.length / productsPerPage)
+  const paginatedProducts = products.slice(
+    (currentPage - 1) * productsPerPage,
+    currentPage * productsPerPage
+  )
+
   return (
     <div className="min-h-screen">
       {/* Banner */}
@@ -204,18 +139,63 @@ export default function ShopPage() {
                 </CollapsibleTrigger>
                 <CollapsibleContent className="pt-4 pb-2">
                   <div className="space-y-2">
-                    {Object.keys(productsByCategory).map((category) => (
-                      <div key={category} className="flex items-center">
-                        <label className="flex items-center cursor-pointer">
-                          <input
-                            type="checkbox"
-                            className="rounded border-gray-300 text-gray-900 focus:ring-gray-900"
-                          />
-                          <span className="ml-2 text-sm">{category}</span>
-                          <span className="ml-auto text-xs text-gray-500">({productsByCategory[category].length})</span>
-                        </label>
-                      </div>
-                    ))}
+                    {/* This section is not directly tied to Supabase filtering,
+                        so it will remain static or require a separate Supabase query
+                        if category filtering is needed. For now, it's a placeholder. */}
+                    <div className="flex items-center">
+                      <label className="flex items-center cursor-pointer">
+                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
+                        <span className="ml-2 text-sm">All Categories</span>
+                      </label>
+                    </div>
+                    <div className="flex items-center">
+                      <label className="flex items-center cursor-pointer">
+                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
+                        <span className="ml-2 text-sm">Pain Relief</span>
+                      </label>
+                    </div>
+                    <div className="flex items-center">
+                      <label className="flex items-center cursor-pointer">
+                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
+                        <span className="ml-2 text-sm">Antibiotics</span>
+                      </label>
+                    </div>
+                    <div className="flex items-center">
+                      <label className="flex items-center cursor-pointer">
+                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
+                        <span className="ml-2 text-sm">Vitamins & Supplements</span>
+                      </label>
+                    </div>
+                    <div className="flex items-center">
+                      <label className="flex items-center cursor-pointer">
+                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
+                        <span className="ml-2 text-sm">Digestive Health</span>
+                      </label>
+                    </div>
+                    <div className="flex items-center">
+                      <label className="flex items-center cursor-pointer">
+                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
+                        <span className="ml-2 text-sm">Allergy & Respiratory</span>
+                      </label>
+                    </div>
+                    <div className="flex items-center">
+                      <label className="flex items-center cursor-pointer">
+                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
+                        <span className="ml-2 text-sm">Medical Devices</span>
+                      </label>
+                    </div>
+                    <div className="flex items-center">
+                      <label className="flex items-center cursor-pointer">
+                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
+                        <span className="ml-2 text-sm">Personal Protection</span>
+                      </label>
+                    </div>
+                    <div className="flex items-center">
+                      <label className="flex items-center cursor-pointer">
+                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
+                        <span className="ml-2 text-sm">Cough & Cold</span>
+                      </label>
+                    </div>
                   </div>
                 </CollapsibleContent>
               </Collapsible>
@@ -250,14 +230,93 @@ export default function ShopPage() {
                 </CollapsibleTrigger>
                 <CollapsibleContent className="pt-4 pb-2">
                   <div className="space-y-2">
-                    {["DHG Pharma", "Imexpharm", "OPV", "Domesco", "Blackmores", "Centrum"].map((brand) => (
-                      <div key={brand} className="flex items-center">
-                        <label className="flex items-center cursor-pointer">
-                          <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
-                          <span className="ml-2 text-sm">{brand}</span>
-                        </label>
-                      </div>
-                    ))}
+                    {/* This section is not directly tied to Supabase filtering,
+                        so it will remain static or require a separate Supabase query
+                        if brand filtering is needed. For now, it's a placeholder. */}
+                    <div className="flex items-center">
+                      <label className="flex items-center cursor-pointer">
+                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
+                        <span className="ml-2 text-sm">All Brands</span>
+                      </label>
+                    </div>
+                    <div className="flex items-center">
+                      <label className="flex items-center cursor-pointer">
+                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
+                        <span className="ml-2 text-sm">DHG Pharma</span>
+                      </label>
+                    </div>
+                    <div className="flex items-center">
+                      <label className="flex items-center cursor-pointer">
+                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
+                        <span className="ml-2 text-sm">Imexpharm</span>
+                      </label>
+                    </div>
+                    <div className="flex items-center">
+                      <label className="flex items-center cursor-pointer">
+                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
+                        <span className="ml-2 text-sm">OPV</span>
+                      </label>
+                    </div>
+                    <div className="flex items-center">
+                      <label className="flex items-center cursor-pointer">
+                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
+                        <span className="ml-2 text-sm">Domesco</span>
+                      </label>
+                    </div>
+                    <div className="flex items-center">
+                      <label className="flex items-center cursor-pointer">
+                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
+                        <span className="ml-2 text-sm">Blackmores</span>
+                      </label>
+                    </div>
+                    <div className="flex items-center">
+                      <label className="flex items-center cursor-pointer">
+                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
+                        <span className="ml-2 text-sm">Centrum</span>
+                      </label>
+                    </div>
+                    <div className="flex items-center">
+                      <label className="flex items-center cursor-pointer">
+                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
+                        <span className="ml-2 text-sm">Stada</span>
+                      </label>
+                    </div>
+                    <div className="flex items-center">
+                      <label className="flex items-center cursor-pointer">
+                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
+                        <span className="ml-2 text-sm">Bayer</span>
+                      </label>
+                    </div>
+                    <div className="flex items-center">
+                      <label className="flex items-center cursor-pointer">
+                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
+                        <span className="ml-2 text-sm">Sanofi</span>
+                      </label>
+                    </div>
+                    <div className="flex items-center">
+                      <label className="flex items-center cursor-pointer">
+                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
+                        <span className="ml-2 text-sm">Merck</span>
+                      </label>
+                    </div>
+                    <div className="flex items-center">
+                      <label className="flex items-center cursor-pointer">
+                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
+                        <span className="ml-2 text-sm">BioGaia</span>
+                      </label>
+                    </div>
+                    <div className="flex items-center">
+                      <label className="flex items-center cursor-pointer">
+                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
+                        <span className="ml-2 text-sm">Nature Made</span>
+                      </label>
+                    </div>
+                    <div className="flex items-center">
+                      <label className="flex items-center cursor-pointer">
+                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
+                        <span className="ml-2 text-sm">Strepsils</span>
+                      </label>
+                    </div>
                   </div>
                 </CollapsibleContent>
               </Collapsible>
@@ -298,122 +357,135 @@ export default function ShopPage() {
             {/* Sort and View Options */}
             <div className="flex justify-between items-center mb-8">
               <p className="text-sm text-gray-600">Showing {products.length} products</p>
-              <select className="border border-gray-200 rounded-full px-4 py-2 text-sm">
-                <option>Sort by: Featured</option>
-                <option>Price: Low to High</option>
-                <option>Price: High to Low</option>
-                <option>Name: A to Z</option>
+              <select
+                className="border border-gray-200 rounded-full px-4 py-2 text-sm"
+                value={sort}
+                onChange={e => { setSort(e.target.value); setCurrentPage(1) }}
+              >
+                <option value="featured">Sort by: Featured</option>
+                <option value="price-asc">Price: Low to High</option>
+                <option value="price-desc">Price: High to Low</option>
+                <option value="name-asc">Name: A to Z</option>
               </select>
             </div>
-
-            {Object.entries(productsByCategory).map(([category, categoryProducts]) => (
-              <div key={category} className="mb-16">
-                <div className="mb-8">
-                  <h2 className="text-2xl font-light mb-2">
-                    <span className="italic">{category}</span>
-                  </h2>
-                  <div className="h-px w-24 bg-gradient-to-r from-gray-400 to-transparent" />
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {categoryProducts.map((product) => (
-                    <div key={product.id} className="group">
-                      <div className="bg-white border border-gray-100 rounded-lg overflow-hidden hover:shadow-md transition-shadow">
-                        {/* Product badges */}
-                        <div className="relative">
-                          {product.originalPrice && (
-                            <div className="absolute top-4 left-4 z-10">
-                              <span className="inline-block bg-red-500 text-white text-xs px-3 py-1 rounded-full">
-                                -{Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)}%
-                              </span>
-                            </div>
-                          )}
-                          {product.prescriptionRequired && (
-                            <div className="absolute top-4 right-4 z-10">
-                              <span className="inline-block bg-blue-500 text-white text-xs px-3 py-1 rounded-full">
-                                Rx Required
-                              </span>
-                            </div>
-                          )}
-                          
-                          <Link href={`/shop/${product.id}`}>
-                            <div className="aspect-w-1 aspect-h-1 bg-gray-50 p-8">
-                              <img
-                                src={product.image || "/placeholder.svg"}
-                                alt={product.name}
-                                className="w-full h-full object-contain"
-                              />
-                            </div>
-                          </Link>
-                        </div>
-                        
-                        <div className="p-4">
-                          <p className="text-xs text-gray-500 mb-1">{product.manufacturer}</p>
-                          <h3 className="text-sm font-medium mb-1">{product.name}</h3>
-                          {product.genericName && (
-                            <p className="text-xs text-gray-600 mb-3">({product.genericName})</p>
-                          )}
-                          
-                          <div className="flex items-center justify-between mb-3">
-                            <div>
-                              <p className="text-lg font-medium text-gray-900">
-                                {product.price.toLocaleString('vi-VN')}₫
-                              </p>
-                              {product.originalPrice && (
-                                <p className="text-sm text-gray-500 line-through">
-                                  {product.originalPrice.toLocaleString('vi-VN')}₫
-                                </p>
-                              )}
-                            </div>
-                            <div className="text-right">
-                              {product.inStock ? (
-                                <span className="text-xs text-green-600">In Stock</span>
-                              ) : (
-                                <span className="text-xs text-red-600">Out of Stock</span>
-                              )}
-                            </div>
+            {loading ? (
+              <div className="text-center py-20 text-gray-500">Loading products...</div>
+            ) : products.length === 0 ? (
+              <div className="text-center py-20 text-gray-500">No products found.</div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {paginatedProducts.map((product) => (
+                  <div key={product.id} className="group h-full">
+                    <div className="bg-white border border-gray-100 rounded-lg overflow-hidden hover:shadow-md transition-shadow flex flex-col h-full">
+                      {/* Product badges */}
+                      <div className="relative">
+                        {product.original_price && (
+                          <div className="absolute top-4 left-4 z-10">
+                            <span className="inline-block bg-red-500 text-white text-xs px-3 py-1 rounded-full">
+                              -{product.original_price ? Math.round(((product.original_price - product.price) / product.original_price) * 100) : 0}%
+                            </span>
                           </div>
-                          
-                          <Button 
-                            className="w-full rounded-full text-sm"
-                            variant={product.inStock ? "default" : "outline"}
-                            disabled={!product.inStock}
-                            onClick={() => {
-                              if (product.inStock && !product.prescriptionRequired) {
-                                // Simple add to cart for non-prescription items
-                                addToCart({
-                                  id: product.id,
-                                  name: product.name,
-                                  price: product.price,
-                                  image: product.image,
-                                  quantity: 1,
-                                  prescriptionRequired: product.prescriptionRequired
-                                })
-                              } else if (product.prescriptionRequired) {
-                                // Navigate to product detail page for prescription items
-                                window.location.href = `/shop/${product.id}`
-                              }
-                            }}
-                          >
-                            {product.inStock ? (product.prescriptionRequired ? "Upload Prescription" : "Add to Cart") : "Notify Me"}
-                          </Button>
+                        )}
+                        {product.prescription_required && (
+                          <div className="absolute top-4 right-4 z-10">
+                            <span className="inline-block bg-blue-500 text-white text-xs px-3 py-1 rounded-full">
+                              Rx Required
+                            </span>
+                          </div>
+                        )}
+                        <Link href={`/shop/${product.id}`}>
+                          <div className="w-full h-56 bg-gray-50 flex items-center justify-center">
+                            <img
+                              src={getProductImageUrl(product.name) || "/placeholder.svg"}
+                              alt={product.name}
+                              className="w-full h-full object-cover object-center transition-transform duration-300 group-hover:scale-105"
+                            />
+                          </div>
+                        </Link>
+                      </div>
+                      <div className="flex flex-col flex-1 p-4">
+                        {product.manufacturer && <p className="text-xs text-gray-500 mb-1">{product.manufacturer}</p>}
+                        <h3 className="text-sm font-medium mb-1">{product.name}</h3>
+                        {product.generic_name && (
+                          <p className="text-xs text-gray-600 mb-3">({product.generic_name})</p>
+                        )}
+                        <div className="flex items-center justify-between mb-3 mt-auto">
+                          <div>
+                            <p className="text-lg font-medium text-gray-900">
+                              {Number(product.price).toLocaleString('vi-VN')}₫
+                            </p>
+                            {product.original_price && (
+                              <p className="text-sm text-gray-500 line-through">
+                                {Number(product.original_price).toLocaleString('vi-VN')}₫
+                              </p>
+                            )}
+                          </div>
+                          {/* Calculate total stock for each product */}
+                          {product.inventory && product.inventory.length > 0 ? (
+                            <div className="text-right">
+                              <span className="text-xs text-green-600">In Stock</span>
+                            </div>
+                          ) : (
+                            <div className="text-right">
+                              <span className="text-xs text-red-600">Out of Stock</span>
+                            </div>
+                          )}
                         </div>
+                        <Button 
+                          className="w-full rounded-full text-sm mt-2"
+                          variant={product.inventory && product.inventory.length > 0 ? "default" : "outline"}
+                          disabled={!(product.inventory && product.inventory.length > 0)}
+                          onClick={() => {
+                            if (product.inventory && product.inventory.length > 0 && !product.prescription_required) {
+                              addToCart({
+                                id: product.id,
+                                name: product.name,
+                                price: product.price,
+                                image: getProductImageUrl(product.name),
+                                quantity: 1,
+                                prescriptionRequired: product.prescription_required
+                              })
+                            } else if (product.prescription_required) {
+                              window.location.href = `/shop/${product.id}`
+                            }
+                          }}
+                        >
+                          {product.inventory && product.inventory.length > 0 ? (product.prescription_required ? "Upload Prescription" : "Add to Cart") : "Notify Me"}
+                        </Button>
                       </div>
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ))}
               </div>
-            ))}
-
+            )}
             {/* Pagination */}
             <div className="flex justify-center items-center gap-2 mt-12">
-              <Button variant="outline" size="icon" className="rounded-full">
+              <Button
+                variant="outline"
+                size="icon"
+                className="rounded-full"
+                onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+              >
                 <ArrowLeft className="h-4 w-4" />
               </Button>
-              <Button variant="outline" className="rounded-full px-4">1</Button>
-              <Button variant="outline" className="rounded-full px-4">2</Button>
-              <Button variant="outline" className="rounded-full px-4">3</Button>
-              <Button variant="outline" size="icon" className="rounded-full">
+              {[...Array(totalPages)].map((_, idx) => (
+                <Button
+                  key={idx + 1}
+                  variant={currentPage === idx + 1 ? "default" : "outline"}
+                  className="rounded-full px-4"
+                  onClick={() => setCurrentPage(idx + 1)}
+                >
+                  {idx + 1}
+                </Button>
+              ))}
+              <Button
+                variant="outline"
+                size="icon"
+                className="rounded-full"
+                onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages}
+              >
                 <ArrowRight className="h-4 w-4" />
               </Button>
             </div>
