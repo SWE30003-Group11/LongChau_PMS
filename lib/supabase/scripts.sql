@@ -292,7 +292,7 @@ CREATE POLICY "Pharmacists can view all prescriptions" ON storage.objects
     )
   );
 
--- Storage policies for product-images bucket (public read, admin upload)
+-- Storage policies for product-images bucket (public read, admin/staff/pharmacist upload)
 DROP POLICY IF EXISTS "Public can view product images" ON storage.objects;
 DROP POLICY IF EXISTS "Admin can upload product images" ON storage.objects;
 DROP POLICY IF EXISTS "Admin can update product images" ON storage.objects;
@@ -301,7 +301,7 @@ DROP POLICY IF EXISTS "Admin can delete product images" ON storage.objects;
 CREATE POLICY "Public can view product images" ON storage.objects
   FOR SELECT USING (bucket_id = 'product-images');
 
-CREATE POLICY "Admin can upload product images" ON storage.objects
+CREATE POLICY "Admin, staff can upload product images" ON storage.objects
   FOR INSERT WITH CHECK (
     bucket_id = 'product-images' AND
     EXISTS (
@@ -310,7 +310,7 @@ CREATE POLICY "Admin can upload product images" ON storage.objects
     )
   );
 
-CREATE POLICY "Admin can update product images" ON storage.objects
+CREATE POLICY "Admin, staff can update product images" ON storage.objects
   FOR UPDATE USING (
     bucket_id = 'product-images' AND
     EXISTS (
@@ -319,7 +319,7 @@ CREATE POLICY "Admin can update product images" ON storage.objects
     )
   );
 
-CREATE POLICY "Admin can delete product images" ON storage.objects
+CREATE POLICY "Admin, staff can delete product images" ON storage.objects
   FOR DELETE USING (
     bucket_id = 'product-images' AND
     EXISTS (

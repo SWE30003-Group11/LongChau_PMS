@@ -36,21 +36,105 @@ export default function ShopPage() {
   const [sort, setSort] = useState("featured")
   const productsPerPage = 9
 
-  useEffect(() => {
-    async function fetchProducts() {
-      setLoading(true)
-      let query = supabase.from("products").select("*, inventory:inventory(quantity)")
-      if (sort === "price-asc") query = query.order("price", { ascending: true })
-      else if (sort === "price-desc") query = query.order("price", { ascending: false })
-      else if (sort === "name-asc") query = query.order("name", { ascending: true })
-      else query = query.order("id", { ascending: false }) // featured
-      const { data, error } = await query
-      if (!error) setProducts((data as Product[]) || [])
-      setLoading(false)
+  // Filter state
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([])
+  const [selectedBrands, setSelectedBrands] = useState<string[]>([])
+  const [selectedPrescription, setSelectedPrescription] = useState<string[]>([])
+  const [selectedPriceRanges, setSelectedPriceRanges] = useState<string[]>([])
+  const [pendingFilters, setPendingFilters] = useState(false)
+
+  // All filter options (could be dynamic from DB, but static for now)
+  const categoryOptions = [
+    "Pain Relief",
+    "Antibiotics",
+    "Vitamins & Supplements",
+    "Digestive Health",
+    "Allergy & Respiratory",
+    "Medical Devices",
+    "Personal Protection",
+    "Cough & Cold"
+  ]
+  const brandOptions = [
+    "DHG Pharma",
+    "Imexpharm",
+    "OPV",
+    "Domesco",
+    "Blackmores",
+    "Centrum",
+    "Stada",
+    "Bayer",
+    "Sanofi",
+    "Merck",
+    "BioGaia",
+    "Nature Made",
+    "Strepsils"
+  ]
+  const priceRanges = [
+    { label: "Under 50,000₫", value: "under-50000" },
+    { label: "50,000₫ - 200,000₫", value: "50000-200000" },
+    { label: "Above 200,000₫", value: "above-200000" }
+  ]
+
+  // Filtering logic
+  async function fetchProductsWithFilters() {
+    setLoading(true)
+    let query = supabase.from("products").select("*, inventory:inventory(quantity)")
+    // Category
+    if (selectedCategories.length > 0) {
+      query = query.in("category", selectedCategories)
     }
-    fetchProducts()
-    setCurrentPage(1) // Reset to page 1 on sort change
+    // Brand
+    if (selectedBrands.length > 0) {
+      query = query.in("manufacturer", selectedBrands)
+    }
+    // Prescription
+    if (selectedPrescription.length === 1) {
+      if (selectedPrescription[0] === "No Prescription Required") query = query.eq("prescription_required", false)
+      if (selectedPrescription[0] === "Prescription Required") query = query.eq("prescription_required", true)
+    }
+    // Price
+    if (selectedPriceRanges.length > 0) {
+      query = query.or(selectedPriceRanges.map(val => {
+        if (val === "under-50000") return "price.lt.50000"
+        if (val === "50000-200000") return "and(price.gte.50000,price.lte.200000)"
+        if (val === "above-200000") return "price.gt.200000"
+        return ""
+      }).join(","))
+    }
+    // Sort
+    if (sort === "price-asc") query = query.order("price", { ascending: true })
+    else if (sort === "price-desc") query = query.order("price", { ascending: false })
+    else if (sort === "name-asc") query = query.order("name", { ascending: true })
+    else query = query.order("id", { ascending: false })
+    const { data, error } = await query
+    if (!error) setProducts((data as Product[]) || [])
+    setLoading(false)
+    setCurrentPage(1)
+  }
+
+  // Initial fetch and sort
+  useEffect(() => {
+    fetchProductsWithFilters()
+    // eslint-disable-next-line
   }, [sort])
+
+  // Handlers for checkboxes
+  function handleCheckboxChange(option: string, selected: string[], setSelected: (v: string[]) => void) {
+    setSelected(selected.includes(option) ? selected.filter(v => v !== option) : [...selected, option])
+    setPendingFilters(true)
+  }
+
+  // Handler for prescription (single select)
+  function handlePrescriptionChange(option: string) {
+    setSelectedPrescription(selectedPrescription.includes(option) ? [] : [option])
+    setPendingFilters(true)
+  }
+
+  // Handler for price range (multi-select)
+  function handlePriceRangeChange(option: string) {
+    setSelectedPriceRanges(selectedPriceRanges.includes(option) ? selectedPriceRanges.filter(v => v !== option) : [...selectedPriceRanges, option])
+    setPendingFilters(true)
+  }
 
   const totalPages = Math.ceil(products.length / productsPerPage)
   const paginatedProducts = products.slice(
@@ -139,63 +223,19 @@ export default function ShopPage() {
                 </CollapsibleTrigger>
                 <CollapsibleContent className="pt-4 pb-2">
                   <div className="space-y-2">
-                    {/* This section is not directly tied to Supabase filtering,
-                        so it will remain static or require a separate Supabase query
-                        if category filtering is needed. For now, it's a placeholder. */}
-                    <div className="flex items-center">
-                      <label className="flex items-center cursor-pointer">
-                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
-                        <span className="ml-2 text-sm">All Categories</span>
-                      </label>
-                    </div>
-                    <div className="flex items-center">
-                      <label className="flex items-center cursor-pointer">
-                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
-                        <span className="ml-2 text-sm">Pain Relief</span>
-                      </label>
-                    </div>
-                    <div className="flex items-center">
-                      <label className="flex items-center cursor-pointer">
-                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
-                        <span className="ml-2 text-sm">Antibiotics</span>
-                      </label>
-                    </div>
-                    <div className="flex items-center">
-                      <label className="flex items-center cursor-pointer">
-                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
-                        <span className="ml-2 text-sm">Vitamins & Supplements</span>
-                      </label>
-                    </div>
-                    <div className="flex items-center">
-                      <label className="flex items-center cursor-pointer">
-                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
-                        <span className="ml-2 text-sm">Digestive Health</span>
-                      </label>
-                    </div>
-                    <div className="flex items-center">
-                      <label className="flex items-center cursor-pointer">
-                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
-                        <span className="ml-2 text-sm">Allergy & Respiratory</span>
-                      </label>
-                    </div>
-                    <div className="flex items-center">
-                      <label className="flex items-center cursor-pointer">
-                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
-                        <span className="ml-2 text-sm">Medical Devices</span>
-                      </label>
-                    </div>
-                    <div className="flex items-center">
-                      <label className="flex items-center cursor-pointer">
-                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
-                        <span className="ml-2 text-sm">Personal Protection</span>
-                      </label>
-                    </div>
-                    <div className="flex items-center">
-                      <label className="flex items-center cursor-pointer">
-                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
-                        <span className="ml-2 text-sm">Cough & Cold</span>
-                      </label>
-                    </div>
+                    {categoryOptions.map(option => (
+                      <div className="flex items-center" key={option}>
+                        <label className="flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            className="rounded border-gray-300 text-gray-900 focus:ring-gray-900"
+                            checked={selectedCategories.includes(option)}
+                            onChange={() => handleCheckboxChange(option, selectedCategories, setSelectedCategories)}
+                          />
+                          <span className="ml-2 text-sm">{option}</span>
+                        </label>
+                      </div>
+                    ))}
                   </div>
                 </CollapsibleContent>
               </Collapsible>
@@ -207,18 +247,19 @@ export default function ShopPage() {
                 </CollapsibleTrigger>
                 <CollapsibleContent className="pt-4 pb-2">
                   <div className="space-y-2">
-                    <div className="flex items-center">
-                      <label className="flex items-center cursor-pointer">
-                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
-                        <span className="ml-2 text-sm">No Prescription Required</span>
-                      </label>
-                    </div>
-                    <div className="flex items-center">
-                      <label className="flex items-center cursor-pointer">
-                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
-                        <span className="ml-2 text-sm">Prescription Required</span>
-                      </label>
-                    </div>
+                    {["No Prescription Required", "Prescription Required"].map(option => (
+                      <div className="flex items-center" key={option}>
+                        <label className="flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            className="rounded border-gray-300 text-gray-900 focus:ring-gray-900"
+                            checked={selectedPrescription.includes(option)}
+                            onChange={() => handlePrescriptionChange(option)}
+                          />
+                          <span className="ml-2 text-sm">{option}</span>
+                        </label>
+                      </div>
+                    ))}
                   </div>
                 </CollapsibleContent>
               </Collapsible>
@@ -230,93 +271,19 @@ export default function ShopPage() {
                 </CollapsibleTrigger>
                 <CollapsibleContent className="pt-4 pb-2">
                   <div className="space-y-2">
-                    {/* This section is not directly tied to Supabase filtering,
-                        so it will remain static or require a separate Supabase query
-                        if brand filtering is needed. For now, it's a placeholder. */}
-                    <div className="flex items-center">
-                      <label className="flex items-center cursor-pointer">
-                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
-                        <span className="ml-2 text-sm">All Brands</span>
-                      </label>
-                    </div>
-                    <div className="flex items-center">
-                      <label className="flex items-center cursor-pointer">
-                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
-                        <span className="ml-2 text-sm">DHG Pharma</span>
-                      </label>
-                    </div>
-                    <div className="flex items-center">
-                      <label className="flex items-center cursor-pointer">
-                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
-                        <span className="ml-2 text-sm">Imexpharm</span>
-                      </label>
-                    </div>
-                    <div className="flex items-center">
-                      <label className="flex items-center cursor-pointer">
-                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
-                        <span className="ml-2 text-sm">OPV</span>
-                      </label>
-                    </div>
-                    <div className="flex items-center">
-                      <label className="flex items-center cursor-pointer">
-                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
-                        <span className="ml-2 text-sm">Domesco</span>
-                      </label>
-                    </div>
-                    <div className="flex items-center">
-                      <label className="flex items-center cursor-pointer">
-                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
-                        <span className="ml-2 text-sm">Blackmores</span>
-                      </label>
-                    </div>
-                    <div className="flex items-center">
-                      <label className="flex items-center cursor-pointer">
-                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
-                        <span className="ml-2 text-sm">Centrum</span>
-                      </label>
-                    </div>
-                    <div className="flex items-center">
-                      <label className="flex items-center cursor-pointer">
-                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
-                        <span className="ml-2 text-sm">Stada</span>
-                      </label>
-                    </div>
-                    <div className="flex items-center">
-                      <label className="flex items-center cursor-pointer">
-                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
-                        <span className="ml-2 text-sm">Bayer</span>
-                      </label>
-                    </div>
-                    <div className="flex items-center">
-                      <label className="flex items-center cursor-pointer">
-                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
-                        <span className="ml-2 text-sm">Sanofi</span>
-                      </label>
-                    </div>
-                    <div className="flex items-center">
-                      <label className="flex items-center cursor-pointer">
-                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
-                        <span className="ml-2 text-sm">Merck</span>
-                      </label>
-                    </div>
-                    <div className="flex items-center">
-                      <label className="flex items-center cursor-pointer">
-                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
-                        <span className="ml-2 text-sm">BioGaia</span>
-                      </label>
-                    </div>
-                    <div className="flex items-center">
-                      <label className="flex items-center cursor-pointer">
-                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
-                        <span className="ml-2 text-sm">Nature Made</span>
-                      </label>
-                    </div>
-                    <div className="flex items-center">
-                      <label className="flex items-center cursor-pointer">
-                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
-                        <span className="ml-2 text-sm">Strepsils</span>
-                      </label>
-                    </div>
+                    {brandOptions.map(option => (
+                      <div className="flex items-center" key={option}>
+                        <label className="flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            className="rounded border-gray-300 text-gray-900 focus:ring-gray-900"
+                            checked={selectedBrands.includes(option)}
+                            onChange={() => handleCheckboxChange(option, selectedBrands, setSelectedBrands)}
+                          />
+                          <span className="ml-2 text-sm">{option}</span>
+                        </label>
+                      </div>
+                    ))}
                   </div>
                 </CollapsibleContent>
               </Collapsible>
@@ -328,27 +295,31 @@ export default function ShopPage() {
                 </CollapsibleTrigger>
                 <CollapsibleContent className="pt-4 pb-2">
                   <div className="space-y-2">
-                    <div className="flex items-center">
-                      <label className="flex items-center cursor-pointer">
-                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
-                        <span className="ml-2 text-sm">Under 50,000₫</span>
-                      </label>
-                    </div>
-                    <div className="flex items-center">
-                      <label className="flex items-center cursor-pointer">
-                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
-                        <span className="ml-2 text-sm">50,000₫ - 200,000₫</span>
-                      </label>
-                    </div>
-                    <div className="flex items-center">
-                      <label className="flex items-center cursor-pointer">
-                        <input type="checkbox" className="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
-                        <span className="ml-2 text-sm">Above 200,000₫</span>
-                      </label>
-                    </div>
+                    {priceRanges.map(range => (
+                      <div className="flex items-center" key={range.value}>
+                        <label className="flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            className="rounded border-gray-300 text-gray-900 focus:ring-gray-900"
+                            checked={selectedPriceRanges.includes(range.value)}
+                            onChange={() => handlePriceRangeChange(range.value)}
+                          />
+                          <span className="ml-2 text-sm">{range.label}</span>
+                        </label>
+                      </div>
+                    ))}
                   </div>
                 </CollapsibleContent>
               </Collapsible>
+
+              {/* Filter Button */}
+              <Button
+                className="w-full rounded-full mt-4"
+                onClick={() => { fetchProductsWithFilters(); setPendingFilters(false); }}
+                disabled={!pendingFilters}
+              >
+                Filter
+              </Button>
             </div>
           </div>
 

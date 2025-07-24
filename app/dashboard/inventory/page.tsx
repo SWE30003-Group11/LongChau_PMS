@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Search, Filter, Plus, Edit, Trash2, ArrowUpDown, Package, AlertTriangle } from "lucide-react"
 import { motion } from "framer-motion"
 import { supabase } from "@/lib/supabase/client"
@@ -27,6 +27,15 @@ import {
 } from "@/components/ui/alert-dialog"
 import { useAuth } from "@/contexts/AuthContext"
 
+// Helper to get product image URL by id
+function getProductImageUrl(productId: string, ext = 'png') {
+  return `${process.env.NEXT_PUBLIC_SUPABASE_URL || ''}/storage/v1/object/public/product-images/product-${productId}.${ext}`;
+}
+
+function getProductImageUrlFromKey(key: string) {
+  return `${process.env.NEXT_PUBLIC_SUPABASE_URL || ''}/storage/v1/object/public/product-images/${key}`;
+}
+
 export default function InventoryPage() {
   const { profile } = useAuth()
   const [products, setProducts] = useState<any[]>([])
@@ -48,10 +57,29 @@ export default function InventoryPage() {
   const [filterSupplier, setFilterSupplier] = useState<string>("all")
   const [currentPage, setCurrentPage] = useState(1)
   const productsPerPage = 10
+  const imageFileRef = useRef<HTMLInputElement | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [uploadedImageKey, setUploadedImageKey] = useState("");
+  const [imageUploadStatus, setImageUploadStatus] = useState("");
+  const [imageUploadError, setImageUploadError] = useState("");
 
   useEffect(() => {
     fetchData()
   }, [])
+
+  useEffect(() => {
+    if (imageFileRef.current && imageFileRef.current.files && imageFileRef.current.files[0]) {
+      const file = imageFileRef.current.files[0]
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        setImagePreview(e.target?.result as string)
+      }
+      reader.readAsDataURL(file)
+    } else {
+      setImagePreview(form.image || null)
+    }
+    // eslint-disable-next-line
+  }, [form.image, showAddEdit])
 
   async function fetchData() {
     setLoading(true)
@@ -87,39 +115,128 @@ export default function InventoryPage() {
   // Add/Edit Product
   function openAddProduct() {
     setEditProduct(null)
-    setForm({})
+    setForm({
+      name: "Glucosamine 1500mg",
+      generic_name: "Glucosamine Sulfate",
+      category: "Joint Health",
+      price: 180000,
+      original_price: 220000,
+      prescription_required: false,
+      in_stock: true,
+      manufacturer: "Nature's Way",
+      pack_size: "Box of 60 tablets",
+      strength: "1500mg",
+      description: "Glucosamine supports joint health and mobility, helping to relieve symptoms of mild osteoarthritis.",
+      mechanism_of_action: "Supports cartilage formation and joint lubrication.",
+      indications: "Joint pain, mild osteoarthritis, cartilage support",
+      warranty: "2 years",
+      storage: "Store in a cool, dry place.",
+      pregnancy_category: "C",
+      lactation: "Consult a doctor",
+      supplier_id: 1
+    })
     setShowAddEdit(true)
+    setImagePreview(null)
+    if (imageFileRef.current) imageFileRef.current.value = ""
   }
   function openEditProduct(product: any) {
     setEditProduct(product)
     setForm({ ...product, supplier_id: product.supplier_id || product.supplier?.id })
     setShowAddEdit(true)
+    setImagePreview(null)
+    if (imageFileRef.current) imageFileRef.current.value = ""
   }
   function closeAddEdit() {
     setShowAddEdit(false)
     setEditProduct(null)
     setForm({})
   }
-  async function handleSaveProduct() {
-    setSaving(true)
-    setError(null)
-    try {
-      if (editProduct) {
-        // Update
-        const { error } = await supabase.from("products").update(form).eq("id", editProduct.id)
-        if (error) throw error
-      } else {
-        // Insert
-        const { error } = await supabase.from("products").insert(form)
-        if (error) throw error
+  async function handleImageUpload() {
+    setImageUploadStatus("");
+    setImageUploadError("");
+    if (imageFileRef.current && imageFileRef.current.files && imageFileRef.current.files[0]) {
+      const file = imageFileRef.current.files[0];
+      if (!file.type.startsWith('image/')) {
+        setImageUploadError('Please upload a valid image file (PNG, JPG, JPEG).');
+        return;
       }
-      closeAddEdit()
-      fetchData()
-    } catch (e: any) {
-      setError(e.message || "Failed to save product")
-    } finally {
-      setSaving(false)
+      if (file.size === 0) {
+        setImageUploadError('The selected file is empty.');
+        return;
+      }
+      if (file.size > 2 * 1024 * 1024) {
+        setImageUploadError('Image must be less than 2MB.');
+        return;
+      }
+      // Use a unique key (timestamp + original name)
+      const ext = file.name.split('.').pop();
+      const key = `temp-${Date.now()}.${ext}`;
+      setImageUploadStatus('Uploading...');
+      const { data: uploadData, error: uploadError } = await supabase.storage.from('product-images').upload(key, file, { upsert: true });
+      if (uploadError) {
+        setImageUploadError('Image upload failed.');
+        setImageUploadStatus("");
+        return;
+      }
+      setUploadedImageKey(key);
+      setImageUploadStatus('Uploaded successfully!');
     }
+  }
+  async function handleSaveProduct() {
+    setSaving(true);
+    setError(null);
+    if (!imageFileRef.current || !imageFileRef.current.files || !imageFileRef.current.files[0]) {
+      setError('Please select an image before submitting the product.');
+      setSaving(false);
+      return;
+    }
+    try {
+      // Only send allowed fields to the products table
+      const allowedFields = [
+        'name', 'generic_name', 'price', 'original_price', 'category', 'prescription_required', 'in_stock', 'manufacturer', 'pack_size', 'strength', 'description', 'mechanism_of_action', 'indications', 'warranty', 'storage', 'pregnancy_category', 'lactation', 'supplier_id'
+      ];
+      const productData: { [key: string]: any } = {};
+      allowedFields.forEach(field => {
+        if (form[field] !== undefined) productData[field] = form[field];
+      });
+      if (!productData.name) {
+        setError('Product name is required.');
+        setSaving(false);
+        return;
+      }
+      // Insert product first
+      const { data, error: insertError } = await supabase.from('products').insert([productData]).select('id, name').single();
+      if (insertError) {
+        setError('Product insert failed: ' + insertError.message);
+        setSaving(false);
+        return;
+      }
+      // Now upload the image using the product name as filename (exact match, including spaces and case)
+      const file = imageFileRef.current.files[0];
+      if (!file.type.startsWith('image/png')) {
+        setError('Please upload a PNG image for consistency.');
+        console.error('Image upload failed: not a PNG file', file);
+        setSaving(false);
+        return;
+      }
+      const fileName = `${data.name}.png`;
+      console.log('Uploading image:', { productName: data.name, file, fileName });
+      const { data: uploadData, error: uploadError } = await supabase.storage.from('product-images').upload(fileName, file, { upsert: true });
+      console.log('Upload response:', { uploadData, uploadError });
+      if (uploadError) {
+        setError('Image upload failed: ' + uploadError.message);
+        console.error('Image upload error:', uploadError);
+        setSaving(false);
+        return;
+      }
+      setShowAddEdit(false);
+      setImagePreview(null);
+      if (imageFileRef.current) imageFileRef.current.value = "";
+      fetchData();
+    } catch (err: any) {
+      setError('Unexpected error: ' + err.message);
+    }
+    setSaving(false);
   }
   // Delete Product
   function openDeleteProduct(product: any) {
@@ -505,22 +622,46 @@ export default function InventoryPage() {
 
       {/* Add/Edit Product Modal */}
       <Dialog open={showAddEdit} onOpenChange={setShowAddEdit}>
-        <DialogContent className="max-w-3xl w-full p-0 bg-gradient-to-br from-white via-gray-50 to-gray-100 rounded-3xl shadow-2xl border border-gray-100 overflow-y-auto hide-scrollbar" style={{ maxHeight: '90vh' }}>
-          <div className="sticky top-0 z-10 bg-gradient-to-br from-white via-gray-50 to-gray-100 rounded-t-3xl px-8 pt-8 pb-4 border-b border-gray-100 flex items-center justify-between">
-            <DialogTitle className="text-2xl font-light tracking-wide text-gray-900">{editProduct ? "Edit Product" : "Add Product"}</DialogTitle>
-            <DialogClose asChild>
-              <button className="rounded-full p-2 hover:bg-gray-100 transition-colors"><span className="sr-only">Close</span><svg className="h-6 w-6 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
-            </DialogClose>
+        <DialogContent className="max-w-2xl w-full p-0 bg-white rounded-3xl shadow-2xl border border-gray-100 overflow-y-auto hide-scrollbar" style={{ maxHeight: '90vh' }}>
+          <DialogTitle className="text-2xl font-light tracking-wide text-gray-900 text-center pt-8 pb-2">
+            {editProduct ? "Edit Product" : "Add Product"}
+          </DialogTitle>
+          <DialogDescription className="text-center text-gray-500 mb-4">Upload a product image, then fill in the product details below.</DialogDescription>
+          {/* Image Upload Section */}
+          <div className="flex flex-col items-center justify-center py-6 border-b border-gray-100">
+            <input
+              type="file"
+              accept="image/png"
+              ref={imageFileRef}
+              className="mb-4"
+              onChange={() => {
+                if (imageFileRef.current && imageFileRef.current.files && imageFileRef.current.files[0]) {
+                  const file = imageFileRef.current.files[0]
+                  const reader = new FileReader()
+                  reader.onload = (e) => {
+                    setImagePreview(e.target?.result as string)
+                  }
+                  reader.readAsDataURL(file)
+                } else {
+                  setImagePreview(null)
+                }
+              }}
+            />
+            {imagePreview && (
+              <img src={imagePreview} alt="Preview" className="mt-4 w-48 h-48 object-cover rounded-lg border" />
+            )}
           </div>
+          {/* Product Form Section */}
           <form
             onSubmit={e => {
               e.preventDefault();
               handleSaveProduct();
             }}
-            className="space-y-8 px-8 py-6 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6"
+            className="flex flex-col px-8 pt-8 pb-4"
           >
+            {/* Product Info Section */}
             <div className="col-span-2 mb-2">
-              <h3 className="text-lg font-semibold text-gray-800 mb-2 tracking-wide">Basic Information</h3>
+              <h3 className="text-lg font-semibold text-gray-800 mb-2 tracking-wide border-b border-gray-100 pb-2">Basic Information</h3>
             </div>
             <div className="col-span-1">
               <label className="block text-sm mb-1 font-medium text-gray-700">Name</label>
@@ -535,16 +676,26 @@ export default function InventoryPage() {
               <input className="w-full border rounded-xl px-4 py-2 bg-white/80 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all shadow-sm" value={form.category || ""} onChange={e => setForm((f: any) => ({ ...f, category: e.target.value }))} required />
             </div>
             <div className="col-span-1">
+              <label className="block text-sm mb-1 font-medium text-gray-700">Supplier</label>
+              <select
+                className="w-full border rounded-xl px-4 py-2 bg-white/80 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all shadow-sm"
+                value={form.supplier_id || ""}
+                onChange={e => setForm((f: any) => ({ ...f, supplier_id: e.target.value ? Number(e.target.value) : null }))}
+                required
+              >
+                <option value="">Select supplier</option>
+                {suppliers.map((sup: any) => (
+                  <option key={sup.id} value={sup.id}>{sup.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="col-span-1">
               <label className="block text-sm mb-1 font-medium text-gray-700">Price</label>
-              <input type="number" className="w-full border rounded-xl px-4 py-2 bg-white/80 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all shadow-sm" value={form.price || ""} onChange={e => setForm((f: any) => ({ ...f, price: Number(e.target.value) }))} required />
+              <input type="number" step="0.01" className="w-full border rounded-xl px-4 py-2 bg-white/80 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all shadow-sm" value={form.price || ""} onChange={e => setForm((f: any) => ({ ...f, price: parseFloat(e.target.value) }))} required />
             </div>
             <div className="col-span-1">
               <label className="block text-sm mb-1 font-medium text-gray-700">Original Price</label>
-              <input type="number" className="w-full border rounded-xl px-4 py-2 bg-white/80 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all shadow-sm" value={form.original_price || ""} onChange={e => setForm((f: any) => ({ ...f, original_price: Number(e.target.value) }))} />
-            </div>
-            <div className="col-span-1">
-              <label className="block text-sm mb-1 font-medium text-gray-700">Image URL</label>
-              <input className="w-full border rounded-xl px-4 py-2 bg-white/80 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all shadow-sm" value={form.image || ""} onChange={e => setForm((f: any) => ({ ...f, image: e.target.value }))} />
+              <input type="number" step="0.01" className="w-full border rounded-xl px-4 py-2 bg-white/80 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all shadow-sm" value={form.original_price || ""} onChange={e => setForm((f: any) => ({ ...f, original_price: parseFloat(e.target.value) }))} />
             </div>
             <div className="col-span-1">
               <label className="block text-sm mb-1 font-medium text-gray-700">Prescription Required</label>
@@ -573,15 +724,11 @@ export default function InventoryPage() {
               <input className="w-full border rounded-xl px-4 py-2 bg-white/80 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all shadow-sm" value={form.strength || ""} onChange={e => setForm((f: any) => ({ ...f, strength: e.target.value }))} />
             </div>
             <div className="col-span-2 mb-2">
-              <h3 className="text-lg font-semibold text-gray-800 mb-2 tracking-wide mt-4">Details</h3>
+              <h3 className="text-lg font-semibold text-gray-800 mb-2 tracking-wide border-b border-gray-100 pb-2 mt-4">Details</h3>
             </div>
             <div className="col-span-2">
               <label className="block text-sm mb-1 font-medium text-gray-700">Description</label>
               <textarea className="w-full border rounded-xl px-4 py-2 min-h-[60px] bg-white/80 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all shadow-sm" value={form.description || ""} onChange={e => setForm((f: any) => ({ ...f, description: e.target.value }))} />
-            </div>
-            <div className="col-span-1">
-              <label className="block text-sm mb-1 font-medium text-gray-700">Active Ingredient</label>
-              <input className="w-full border rounded-xl px-4 py-2 bg-white/80 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all shadow-sm" value={form.active_ingredient || ""} onChange={e => setForm((f: any) => ({ ...f, active_ingredient: e.target.value }))} />
             </div>
             <div className="col-span-1">
               <label className="block text-sm mb-1 font-medium text-gray-700">Mechanism of Action</label>
@@ -607,18 +754,14 @@ export default function InventoryPage() {
               <label className="block text-sm mb-1 font-medium text-gray-700">Lactation</label>
               <input className="w-full border rounded-xl px-4 py-2 bg-white/80 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all shadow-sm" value={form.lactation || ""} onChange={e => setForm((f: any) => ({ ...f, lactation: e.target.value }))} />
             </div>
-            <div className="col-span-2">
-              <label className="block text-sm mb-1 font-medium text-gray-700">Images (comma separated)</label>
-              <input className="w-full border rounded-xl px-4 py-2 bg-white/80 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all shadow-sm" value={form.images || ""} onChange={e => setForm((f: any) => ({ ...f, images: e.target.value }))} />
-            </div>
             {/* Sticky footer for actions */}
-            <DialogFooter className="col-span-2 flex justify-end gap-4 mt-4 sticky bottom-0 bg-gradient-to-t from-white/90 to-transparent pt-6 pb-2 z-10">
+            <DialogFooter className="col-span-2 flex justify-end gap-4 mt-4 sticky bottom-0 bg-gradient-to-t from-white/90 to-transparent pt-6 pb-2 z-10 border-t border-gray-100 px-8">
               <button type="submit" className="px-8 py-3 bg-gray-900 text-white rounded-full text-lg font-semibold shadow hover:bg-gray-800 transition-colors" disabled={saving}>{saving ? "Saving..." : "Save"}</button>
               <DialogClose asChild>
                 <button type="button" className="px-8 py-3 border rounded-full text-lg font-semibold">Cancel</button>
               </DialogClose>
             </DialogFooter>
-            {error && <div className="text-red-500 text-sm mt-2 col-span-2">{error}</div>}
+            {error && <div className="text-red-500 text-sm mt-2 col-span-2 text-center">{error}</div>}
           </form>
         </DialogContent>
       </Dialog>

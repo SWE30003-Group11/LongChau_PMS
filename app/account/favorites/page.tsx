@@ -186,7 +186,7 @@ export default function FavoritesPage() {
 
                 return (
                   <div key={favorite.id} className="group">
-                    <div className="bg-white rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                    <div className="bg-white rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col h-full min-h-[420px]">
                       <div className="relative">
                         <Link href={`/shop/${product.id}`}>
                           <div className="aspect-w-1 aspect-h-1 bg-gray-100">
@@ -217,19 +217,21 @@ export default function FavoritesPage() {
                           </Badge>
                         )}
                       </div>
-                      <div className="p-4">
+                      <div className="p-4 flex flex-col flex-1">
                         <h3 className="font-medium text-sm mb-2 line-clamp-2">
                           {product.name}
                         </h3>
                         <p className="text-lg font-semibold mb-3">
                           {typeof product.price === 'number' ? product.price.toLocaleString('vi-VN') : '-'}₫
                         </p>
-                        {product.prescription_required && (
-                          <Badge variant="outline" className="mb-3 text-xs">
-                            Prescription Required
-                          </Badge>
-                        )}
-                        <div className="flex space-x-2">
+                        <div className="mb-3 min-h-[28px]">
+                          {product.prescription_required && (
+                            <Badge variant="outline" className="text-xs">
+                              Prescription Required
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex space-x-2 mt-auto">
                           <Button
                             size="sm"
                             variant="outline"
@@ -252,33 +254,6 @@ export default function FavoritesPage() {
                   </div>
                 )
               })}
-            </div>
-          )}
-
-          {/* Quick Stats */}
-          {favorites.length > 0 && (
-            <div className="mt-12 bg-white rounded-lg p-6 shadow-sm">
-              <h3 className="text-lg font-medium mb-4">Summary</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                <div>
-                  <p className="text-gray-500">Total Items</p>
-                  <p className="text-2xl font-semibold">{favorites.length}</p>
-                </div>
-                <div>
-                  <p className="text-gray-500">Total Value</p>
-                  <p className="text-2xl font-semibold">
-                    {favorites
-                      .reduce((sum, fav) => sum + (fav.product?.price || 0), 0)
-                      .toLocaleString('vi-VN')}₫
-                  </p>
-                </div>
-                <div>
-                  <p className="text-gray-500">Prescription Items</p>
-                  <p className="text-2xl font-semibold">
-                    {favorites.filter(f => f.product?.prescription_required).length}
-                  </p>
-                </div>
-              </div>
             </div>
           )}
         </div>

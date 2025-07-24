@@ -10,6 +10,7 @@ import { motion } from "framer-motion"
 import { useCart } from "@/hooks/use-cart"
 import { supabase } from "@/lib/supabase/client"
 import { useAuth } from "@/contexts/AuthContext"
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip"
 
 // Helper to map branch_id to branch name
 const branchIdToName: Record<number, string> = {
@@ -39,7 +40,7 @@ interface Product {
   key_features?: string | null
   active_ingredient?: string | null
   mechanism_of_action?: string | null
-  indications?: string | null
+  indications?: string | string[] | null
   warranty?: string | null
   storage?: string | null
   pregnancy_category?: string | null
@@ -47,6 +48,9 @@ interface Product {
   bundle_products?: string | null
   related_products?: string | null
   inventory?: { quantity: number, branch_id: number }[]
+  registration_number?: string | null
+  barcode?: string | null
+  quality_features?: string | null
 }
 
 // Helper function to get product image URL from storage
@@ -68,7 +72,6 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
   const [product, setProduct] = useState<Product | null>(null)
   const [loading, setLoading] = useState(true)
   const [quantity, setQuantity] = useState(1)
-  const [selectedImage, setSelectedImage] = useState(0)
   const [showPrescriptionUpload, setShowPrescriptionUpload] = useState(false)
   const { addToCart } = useCart()
   const { user } = useAuth()
@@ -143,9 +146,8 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
   try { if (product.bundle_products) bundleProducts = JSON.parse(product.bundle_products) } catch {}
   try { if (product.related_products) relatedProducts = JSON.parse(product.related_products) } catch {}
   
-  // Get product images from storage
-  const images = getProductImages(product.name)
-  const imageSrc = images[selectedImage] || "/placeholder.svg"
+  // Get product image from storage
+  const imageSrc = getProductImageUrl(product.name)
 
   const manufacturer = product.manufacturer || "Unknown"
   const genericName = product.generic_name || null
@@ -189,43 +191,63 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
         </div>
       </div>
 
-      {/* Hero Section */}
+      {/* Product Hero Section */}
       <section className="py-12">
         <div className="container mx-auto px-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-            {/* Product Images Gallery */}
-            <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.6 }}>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+            {/* Product Images */}
+            <motion.div 
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6 }}
+            >
               <div className="bg-gradient-to-br from-gray-50 to-white rounded-2xl p-8 mb-4 border border-gray-100">
-                <img src={imageSrc} alt={product.name} className="w-full h-96 object-contain" />
+                <img
+                  src={imageSrc || "/placeholder.svg"}
+                  alt={product.name}
+                  className="w-full h-96 object-contain"
+                />
               </div>
-              {images.length > 1 && (
-                <div className="grid grid-cols-4 gap-4">
-                  {images.map((img, idx) => (
-                    <motion.div key={idx} whileHover={{ scale: 1.05 }} className={`bg-gray-50 rounded-xl p-4 cursor-pointer border-2 transition-all ${selectedImage === idx ? 'border-gray-900' : 'border-transparent'}`} onClick={() => setSelectedImage(idx)}>
-                      <img src={img || "/placeholder.svg"} alt={`${product.name} view ${idx + 1}`} className="w-full h-20 object-contain" />
-                    </motion.div>
-                  ))}
-                </div>
-              )}
             </motion.div>
 
-            {/* Product Info and Actions */}
-            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.6 }}>
+            {/* Product Info */}
+            <motion.div 
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6 }}
+            >
+              {/* Header */}
               <div className="mb-6">
-                <div className="flex flex-wrap items-center gap-4 mb-3">
+                <div className="flex items-center gap-4 mb-3">
                   <span className="text-sm text-gray-500">{manufacturer}</span>
-                  {product.pack_size && <><span className="text-sm text-gray-400">|</span><span className="text-sm text-gray-500">{product.pack_size}</span></>}
-                  {product.strength && <><span className="text-sm text-gray-400">|</span><span className="text-sm text-gray-500">{product.strength}</span></>}
+                  <span className="text-sm text-gray-400">|</span>
+                  <span className="text-sm text-gray-500">Reg No: {product.registration_number || '-'}</span>
+                  <span className="text-sm text-gray-400">|</span>
+                  <span className="text-sm text-gray-500">Barcode: {product.barcode || '-'}</span>
                 </div>
                 <h1 className="text-3xl md:text-4xl font-light mb-2">{product.name}</h1>
-                {genericName && <p className="text-gray-600 text-lg mb-2">{genericName}</p>}
-                {product.description && <p className="text-gray-700 mb-4">{product.description}</p>}
+                <p className="text-gray-600 text-lg mb-4">
+                  {genericName} {product.strength && `• ${product.strength}`} • {product.pack_size}
+                </p>
+                {/* Price */}
                 <div className="flex items-baseline gap-4 mb-6">
-                  <span className="text-4xl font-light text-gray-900">{price.toLocaleString('vi-VN')}₫</span>
-                  {originalPrice && <><span className="text-2xl text-gray-400 line-through">{originalPrice.toLocaleString('vi-VN')}₫</span><span className="bg-red-500 text-white text-sm px-3 py-1 rounded-full">Save {Math.round(((originalPrice - price) / originalPrice) * 100)}%</span></>}
+                  <span className="text-4xl font-light text-gray-900">
+                    {price.toLocaleString('vi-VN')}₫
+                  </span>
+                  {originalPrice && (
+                    <>
+                      <span className="text-2xl text-gray-400 line-through">
+                        {originalPrice.toLocaleString('vi-VN')}₫
+                      </span>
+                      <span className="bg-red-500 text-white text-sm px-3 py-1 rounded-full">
+                        Save {Math.round(((originalPrice - price) / originalPrice) * 100)}%
+                      </span>
+                    </>
+                  )}
                 </div>
               </div>
 
+              {/* Prescription Alert */}
               {prescriptionRequired && (
                 <Alert className="mb-6 border-blue-200 bg-blue-50">
                   <AlertCircle className="h-5 w-5 text-blue-600" />
@@ -236,57 +258,52 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
               )}
 
               {/* Key Features */}
-              {(keyFeatures.main_benefit || keyFeatures.duration || keyFeatures.onset || keyFeatures.form) && (
-                <div className="grid grid-cols-2 gap-4 mb-8 p-6 bg-gray-50 rounded-xl">
-                  {keyFeatures.main_benefit && <div><p className="text-sm text-gray-500 mb-1">Main Benefit</p><p className="font-medium">{keyFeatures.main_benefit}</p></div>}
-                  {keyFeatures.duration && <div><p className="text-sm text-gray-500 mb-1">Duration</p><p className="font-medium">{keyFeatures.duration}</p></div>}
-                  {keyFeatures.onset && <div><p className="text-sm text-gray-500 mb-1">Onset</p><p className="font-medium">{keyFeatures.onset}</p></div>}
-                  {keyFeatures.form && <div><p className="text-sm text-gray-500 mb-1">Form</p><p className="font-medium">{keyFeatures.form}</p></div>}
-                </div>
-              )}
+              {/* Description */}
+              <div className="mb-8">
+                <p className="text-gray-600 leading-relaxed">{product.description}</p>
+              </div>
 
               {/* Stock Status */}
-              <div className="mb-8 flex flex-col gap-2 p-4 bg-green-50 rounded-xl">
-                <div className="flex items-center justify-between">
-                  {totalStock > 0 ? (
-                    <div className="flex items-center gap-3">
-                      <CheckCircle className="h-6 w-6 text-green-600" />
-                      <div>
-                        <span className="font-medium text-green-900">In Stock</span>
-                        <p className="text-sm text-green-700">Total stock: {totalStock} units</p>
-                      </div>
+              <div className="mb-8 flex items-center justify-between p-4 bg-green-50 rounded-xl">
+                {inStock ? (
+                  <div className="flex items-center gap-3">
+                    <CheckCircle className="h-6 w-6 text-green-600" />
+                    <div>
+                      <span className="font-medium text-green-900">In Stock</span>
+                      <p className="text-sm text-green-700">Available at Long Chau branches</p>
                     </div>
-                  ) : (
-                    <div className="flex items-center gap-3">
-                      <XCircle className="h-6 w-6 text-red-600" />
-                      <div>
-                        <span className="font-medium text-red-900">Out of Stock</span>
-                        <p className="text-sm text-red-700">Notify me when available</p>
-                      </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <XCircle className="h-6 w-6 text-red-600" />
+                    <div>
+                      <span className="font-medium text-red-900">Out of Stock</span>
+                      <p className="text-sm text-red-700">Notify me when available</p>
                     </div>
-                  )}
-                  <Button variant="ghost" size="sm" className="text-blue-600">Check branch availability</Button>
-                </div>
-                {/* Per-branch stock table */}
-                <div className="mt-2">
-                  <table className="w-full text-sm">
+                  </div>
+                )}
+              </div>
+              {/* Branch Stock Table */}
+              {Array.isArray(product.inventory) && product.inventory.length > 0 && (
+                <div className="mb-8">
+                  <table className="w-full text-sm border rounded-xl overflow-hidden">
                     <thead>
-                      <tr>
-                        <th className="text-left">Branch</th>
-                        <th className="text-right">Stock</th>
+                      <tr className="bg-gray-50">
+                        <th className="text-left px-4 py-2 font-medium text-gray-600">Branch</th>
+                        <th className="text-right px-4 py-2 font-medium text-gray-600">Stock</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {(product?.inventory || []).map(inv => (
-                        <tr key={inv.branch_id}>
-                          <td>{branchIdToName[inv.branch_id] || `Branch #${inv.branch_id}`}</td>
-                          <td className="text-right">{inv.quantity}</td>
+                      {product.inventory.map((inv, idx) => (
+                        <tr key={inv.branch_id} className="border-t">
+                          <td className="px-4 py-2">{branchIdToName[inv.branch_id] || `Branch #${inv.branch_id}`}</td>
+                          <td className="px-4 py-2 text-right">{inv.quantity}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
-              </div>
+              )}
 
               {/* Add to Cart Section */}
               <div className="space-y-4">
@@ -294,9 +311,19 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                   <div className="flex items-center">
                     <span className="text-gray-700 mr-4">Quantity:</span>
                     <div className="flex items-center border border-gray-200 rounded-full">
-                      <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="w-10 h-10 flex items-center justify-center hover:bg-gray-100 rounded-l-full transition-colors"><Minus className="h-4 w-4" /></button>
+                      <button
+                        onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                        className="w-10 h-10 flex items-center justify-center hover:bg-gray-100 rounded-l-full transition-colors"
+                      >
+                        <Minus className="h-4 w-4" />
+                      </button>
                       <span className="w-12 text-center font-medium">{quantity}</span>
-                      <button onClick={() => setQuantity(quantity + 1)} className="w-10 h-10 flex items-center justify-center hover:bg-gray-100 rounded-r-full transition-colors"><Plus className="h-4 w-4" /></button>
+                      <button
+                        onClick={() => setQuantity(quantity + 1)}
+                        className="w-10 h-10 flex items-center justify-center hover:bg-gray-100 rounded-r-full transition-colors"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </button>
                     </div>
                   </div>
                   <div className="text-right">
@@ -304,76 +331,86 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                     <p className="text-xl font-medium">{(price * quantity).toLocaleString('vi-VN')}₫</p>
                   </div>
                 </div>
+
                 <div className="flex gap-4">
-                  <Button onClick={handleAddToCart} disabled={!inStock} className="flex-1 rounded-full bg-gray-900 hover:bg-gray-800 text-white py-6 text-lg">
-                    {prescriptionRequired ? (<><FileText className="h-5 w-5 mr-2" />Upload Prescription to Buy</>) : ("Add to Cart")}
+                  <Button
+                    onClick={handleAddToCart}
+                    disabled={!inStock}
+                    className="flex-1 rounded-full bg-gray-900 hover:bg-gray-800 text-white py-6 text-lg"
+                  >
+                    {prescriptionRequired ? (
+                      <>
+                        <FileText className="h-5 w-5 mr-2" />
+                        Upload Prescription to Buy
+                      </>
+                    ) : (
+                      "Add to Cart"
+                    )}
                   </Button>
-                  {/* Favorite Button */}
-                  {user && (
-                    <Button
-                      variant={isFavorite ? "default" : "outline"}
-                      size="icon"
-                      className={`rounded-full w-14 h-14 ${isFavorite ? 'bg-red-500 text-white' : ''}`}
-                      onClick={handleToggleFavorite}
-                      disabled={favoriteLoading}
-                      aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
-                    >
-                      {favoriteLoading ? (
-                        <Loader2 className="h-5 w-5 animate-spin" />
-                      ) : isFavorite ? (
-                        <Heart className="h-5 w-5 fill-current" />
-                      ) : (
-                        <Heart className="h-5 w-5" />
-                      )}
-                    </Button>
-                  )}
+                  {/* Favorite Button with state, fixed Tooltip usage */}
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant={isFavorite ? "default" : "outline"}
+                          size="icon"
+                          className={`rounded-full w-14 h-14 flex items-center justify-center ${isFavorite ? "bg-red-100 hover:bg-red-200" : ""}`}
+                          aria-label={user ? (isFavorite ? "Remove from Favorites" : "Add to Favorites") : "Log in to favorite"}
+                          onClick={async () => {
+                            if (!user) {
+                              window.location.href = "/account";
+                              return;
+                            }
+                            await handleToggleFavorite();
+                          }}
+                          disabled={favoriteLoading}
+                        >
+                          {favoriteLoading ? (
+                            <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+                          ) : (
+                            <Heart className={`h-5 w-5 transition-colors duration-200 ${isFavorite ? "fill-red-500 text-red-500" : "text-gray-400"}`} />
+                          )}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        {user ? (isFavorite ? "Remove from Favorites" : "Add to Favorites") : "Log in to favorite"}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </div>
+
+                {/* Express Actions */}
                 <div className="grid grid-cols-2 gap-4">
-                  <Button variant="outline" className="rounded-full"><Phone className="h-4 w-4 mr-2" />Call Pharmacist</Button>
-                  <Button variant="outline" className="rounded-full"><MessageCircle className="h-4 w-4 mr-2" />Chat Support</Button>
+                  <Button variant="outline" className="rounded-full">
+                    <Phone className="h-4 w-4 mr-2" />
+                    Call Pharmacist
+                  </Button>
+                  <Button variant="outline" className="rounded-full">
+                    <MessageCircle className="h-4 w-4 mr-2" />
+                    Chat Support
+                  </Button>
                 </div>
               </div>
 
               {/* Trust Badges */}
               <div className="grid grid-cols-4 gap-4 py-6 mt-8 border-t border-gray-200">
-                <div className="text-center"><Shield className="h-8 w-8 mx-auto mb-2 text-gray-700" /><p className="text-xs">100% Authentic</p></div>
-                <div className="text-center"><Truck className="h-8 w-8 mx-auto mb-2 text-gray-700" /><p className="text-xs">Fast Delivery</p></div>
-                <div className="text-center"><Clock className="h-8 w-8 mx-auto mb-2 text-gray-700" /><p className="text-xs">24/7 Support</p></div>
-                <div className="text-center"><Package className="h-8 w-8 mx-auto mb-2 text-gray-700" /><p className="text-xs">Secure Package</p></div>
+                <div className="text-center">
+                  <Shield className="h-8 w-8 mx-auto mb-2 text-gray-700" />
+                  <p className="text-xs">100% Authentic</p>
+                </div>
+                <div className="text-center">
+                  <Truck className="h-8 w-8 mx-auto mb-2 text-gray-700" />
+                  <p className="text-xs">Fast Delivery</p>
+                </div>
+                <div className="text-center">
+                  <Clock className="h-8 w-8 mx-auto mb-2 text-gray-700" />
+                  <p className="text-xs">24/7 Support</p>
+                </div>
+                <div className="text-center">
+                  <Package className="h-8 w-8 mx-auto mb-2 text-gray-700" />
+                  <p className="text-xs">Secure Package</p>
+                </div>
               </div>
-
-              {/* Bundle Products */}
-              {bundleProducts.length > 0 && (
-                <div className="mt-10">
-                  <h3 className="text-lg font-medium mb-4">Frequently Bought Together</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {bundleProducts.map((bp, idx) => (
-                      <div key={idx} className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
-                        <img src={getProductImageUrl(bp.name) || "/placeholder.svg"} alt={bp.name} className="w-16 h-16 object-contain" />
-                        <div className="flex-1"><h5 className="text-sm font-medium">{bp.name}</h5><p className="text-sm text-gray-900">{bp.price?.toLocaleString('vi-VN')}₫</p></div>
-                        <input type="checkbox" defaultChecked className="rounded" />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Related Products */}
-              {relatedProducts.length > 0 && (
-                <div className="mt-10">
-                  <h3 className="text-lg font-medium mb-4">Related Products</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {relatedProducts.map((rp, idx) => (
-                      <Link key={idx} href={`/shop/${rp.id}`} className="group block">
-                        <div className="bg-white rounded-xl overflow-hidden border border-gray-100 hover:shadow-lg transition-all">
-                          <div className="bg-gradient-to-br from-gray-50 to-white p-6"><img src={getProductImageUrl(rp.name) || "/placeholder.svg"} alt={rp.name} className="w-full h-32 object-contain group-hover:scale-105 transition-transform" /></div>
-                          <div className="p-4"><h3 className="text-sm font-medium mb-2 group-hover:text-blue-600 transition-colors">{rp.name}</h3><p className="text-lg font-medium text-gray-900">{rp.price?.toLocaleString('vi-VN')}₫</p></div>
-                        </div>
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              )}
             </motion.div>
           </div>
         </div>
@@ -405,164 +442,119 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
           </motion.div>
 
           <Tabs defaultValue="details" className="max-w-6xl mx-auto">
-            {/* Enhanced Tab Navigation */}
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-            >
-              <TabsList className="w-full max-w-md mx-auto bg-white/80 backdrop-blur-sm rounded-2xl p-2 mb-12 shadow-lg border border-gray-100">
-                <TabsTrigger 
-                  value="details" 
-                  className="flex-1 rounded-xl font-medium transition-all duration-300 data-[state=active]:bg-gray-900 data-[state=active]:text-white data-[state=active]:shadow-md"
-                >
-                  <Package className="h-4 w-4 mr-2" />
-                  Details
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="faq" 
-                  className="flex-1 rounded-xl font-medium transition-all duration-300 data-[state=active]:bg-gray-900 data-[state=active]:text-white data-[state=active]:shadow-md"
-                >
-                  <Info className="h-4 w-4 mr-2" />
-                  FAQ
-                </TabsTrigger>
-              </TabsList>
-            </motion.div>
-
-            {/* Enhanced Details Tab */}
-            <TabsContent value="details" className="mt-0">
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.6, delay: 0.3 }}
-                className="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden"
+            <TabsList className="w-full max-w-md mx-auto bg-white/80 backdrop-blur-sm rounded-2xl p-2 mb-12 shadow-lg border border-gray-100 flex justify-center">
+              <TabsTrigger 
+                value="details" 
+                className="flex-1 rounded-xl font-medium transition-all duration-300 data-[state=active]:bg-gray-900 data-[state=active]:text-white data-[state=active]:shadow-md"
               >
-                {/* Gradient Header */}
-                <div className="bg-gradient-to-r from-gray-50 via-white to-gray-50 p-8 border-b border-gray-100">
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                    <span className="text-sm uppercase tracking-wider text-gray-500 font-medium">Product Specifications</span>
-                  </div>
-                  <h3 className="font-playfair text-2xl font-light text-gray-900">Detailed Information</h3>
-                </div>
+                Details
+              </TabsTrigger>
+              <TabsTrigger 
+                value="highlights" 
+                className="flex-1 rounded-xl font-medium transition-all duration-300 data-[state=active]:bg-gray-900 data-[state=active]:text-white data-[state=active]:shadow-md"
+              >
+                Highlights
+              </TabsTrigger>
+              <TabsTrigger 
+                value="faq" 
+                className="flex-1 rounded-xl font-medium transition-all duration-300 data-[state=active]:bg-gray-900 data-[state=active]:text-white data-[state=active]:shadow-md"
+              >
+                FAQ
+              </TabsTrigger>
+            </TabsList>
 
-                <div className="p-8">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Product Details Cards */}
-                    {[
-                      {
-                        icon: Package,
-                        title: "Active Ingredient",
-                        content: product.active_ingredient,
-                        color: "blue",
-                        bgGradient: "from-blue-50 to-blue-100/50"
-                      },
-                      {
-                        icon: Info,
-                        title: "Mechanism of Action",
-                        content: product.mechanism_of_action,
-                        color: "purple",
-                        bgGradient: "from-purple-50 to-purple-100/50"
-                      },
-                      {
-                        icon: CheckCircle,
-                        title: "Indications",
-                        content: product.indications,
-                        color: "green",
-                        bgGradient: "from-green-50 to-green-100/50"
-                      },
-                      {
-                        icon: Package,
-                        title: "Storage Instructions",
-                        content: product.storage,
-                        color: "amber",
-                        bgGradient: "from-amber-50 to-amber-100/50"
-                      },
-                      {
-                        icon: Shield,
-                        title: "Warranty & Quality",
-                        content: product.warranty,
-                        color: "violet",
-                        bgGradient: "from-violet-50 to-violet-100/50"
-                      },
-                      {
-                        icon: Info,
-                        title: "Pregnancy Category",
-                        content: product.pregnancy_category,
-                        color: "pink",
-                        bgGradient: "from-pink-50 to-pink-100/50"
-                      }
-                    ].filter(item => item.content).map((item, index) => (
-                      <motion.div
-                        key={index}
-                        initial={{ opacity: 0, y: 15 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true }}
-                        transition={{ duration: 0.5, delay: index * 0.1 }}
-                        className="group cursor-pointer"
-                      >
-                        <div className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${item.bgGradient} border border-gray-100 hover:shadow-lg transition-all duration-300 group-hover:scale-[1.02]`}>
-                          <div className="p-6">
-                            <div className="flex items-start gap-4">
-                              <div className={`flex-shrink-0 w-12 h-12 rounded-xl bg-white shadow-sm flex items-center justify-center text-${item.color}-600 group-hover:scale-110 transition-transform duration-300`}>
-                                <item.icon className="h-6 w-6" />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <h4 className="font-semibold text-gray-900 mb-2 group-hover:text-gray-800 transition-colors">
-                                  {item.title}
-                                </h4>
-                                <p className="text-gray-700 leading-relaxed text-sm">
-                                  {item.content}
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                          {/* Subtle hover effect line */}
-                          <div className={`absolute bottom-0 left-0 h-1 bg-gradient-to-r from-${item.color}-400 to-${item.color}-600 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left`}></div>
-                        </div>
-                      </motion.div>
-                    ))}
-                  </div>
-
-                  {/* Additional Information Section */}
-                  {(product.lactation || product.pregnancy_category) && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      whileInView={{ opacity: 1, y: 0 }}
-                      viewport={{ once: true }}
-                      transition={{ duration: 0.6, delay: 0.5 }}
-                      className="mt-8 p-6 bg-gradient-to-r from-gray-50 to-gray-100/50 rounded-2xl border border-gray-200"
-                    >
-                      <div className="flex items-center gap-3 mb-4">
-                        <Info className="h-5 w-5 text-pink-600" />
-                        <h4 className="font-semibold text-gray-900">Special Considerations</h4>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {product.pregnancy_category && (
-                          <div className="flex items-start gap-3">
-                            <div className="w-2 h-2 bg-pink-400 rounded-full mt-2 flex-shrink-0"></div>
-                            <div>
-                              <span className="font-medium text-gray-900">Pregnancy:</span>
-                              <span className="text-gray-700 ml-2">{product.pregnancy_category}</span>
-                            </div>
-                          </div>
-                        )}
-                        {product.lactation && (
-                          <div className="flex items-start gap-3">
-                            <div className="w-2 h-2 bg-pink-400 rounded-full mt-2 flex-shrink-0"></div>
-                            <div>
-                              <span className="font-medium text-gray-900">Lactation:</span>
-                              <span className="text-gray-700 ml-2">{product.lactation}</span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </motion.div>
+            {/* Details Tab */}
+            <TabsContent value="details" className="bg-white p-8 rounded-2xl shadow-sm">
+              <div className="max-w-3xl mx-auto">
+                <h3 className="text-2xl font-light text-gray-900 mb-8">Product Details</h3>
+                <dl className="divide-y divide-gray-200">
+                  {product.active_ingredient && (
+                    <div className="py-4 flex flex-col md:flex-row md:items-center md:gap-4">
+                      <dt className="w-48 text-gray-500 text-sm">Active Ingredient</dt>
+                      <dd className="flex-1 text-gray-900">{product.active_ingredient}</dd>
+                    </div>
                   )}
+                  {product.mechanism_of_action && (
+                    <div className="py-4 flex flex-col md:flex-row md:items-center md:gap-4">
+                      <dt className="w-48 text-gray-500 text-sm">Mechanism of Action</dt>
+                      <dd className="flex-1 text-gray-900">{product.mechanism_of_action}</dd>
+                    </div>
+                  )}
+                  {product.category && (
+                    <div className="py-4 flex flex-col md:flex-row md:items-center md:gap-4">
+                      <dt className="w-48 text-gray-500 text-sm">Therapeutic Category</dt>
+                      <dd className="flex-1 text-gray-900">{product.category}</dd>
+                    </div>
+                  )}
+                  {product.storage && (
+                    <div className="py-4 flex flex-col md:flex-row md:items-center md:gap-4">
+                      <dt className="w-48 text-gray-500 text-sm">Storage</dt>
+                      <dd className="flex-1 text-gray-900">{product.storage}</dd>
+                    </div>
+                  )}
+                  {product.warranty && (
+                    <div className="py-4 flex flex-col md:flex-row md:items-center md:gap-4">
+                      <dt className="w-48 text-gray-500 text-sm">Warranty</dt>
+                      <dd className="flex-1 text-gray-900">{product.warranty}</dd>
+                    </div>
+                  )}
+                  {product.pregnancy_category && (
+                    <div className="py-4 flex flex-col md:flex-row md:items-center md:gap-4">
+                      <dt className="w-48 text-gray-500 text-sm">Pregnancy Category</dt>
+                      <dd className="flex-1 text-gray-900">{product.pregnancy_category}</dd>
+                    </div>
+                  )}
+                  {product.lactation && (
+                    <div className="py-4 flex flex-col md:flex-row md:items-center md:gap-4">
+                      <dt className="w-48 text-gray-500 text-sm">Lactation</dt>
+                      <dd className="flex-1 text-gray-900">{product.lactation}</dd>
+                    </div>
+                  )}
+                </dl>
+              </div>
+            </TabsContent>
+
+            {/* Highlights Tab */}
+            <TabsContent value="highlights" className="bg-white p-8 rounded-2xl shadow-sm">
+              <div className="max-w-3xl mx-auto">
+                <h3 className="text-2xl font-light text-gray-900 mb-8">Effective treatment, proven results</h3>
+                <div className="mb-8">
+                  <h4 className="text-lg font-medium mb-3">Recommended For</h4>
+                  <ul className="space-y-2">
+                    {(() => {
+                      let indicationsArr: string[] = [];
+                      if (Array.isArray(product.indications)) {
+                        indicationsArr = product.indications;
+                      } else if (typeof product.indications === 'string') {
+                        indicationsArr = product.indications.split(/\n|,/).map(s => s.trim()).filter(Boolean);
+                      }
+                      return indicationsArr.slice(0, 3).map((item, index) => (
+                        <li key={index} className="flex items-start">
+                          <CheckCircle className="h-5 w-5 text-green-600 mr-3 mt-0.5 flex-shrink-0" />
+                          <span className="text-gray-600">{item}</span>
+                        </li>
+                      ));
+                    })()}
+                  </ul>
                 </div>
-              </motion.div>
+                {product.quality_features && (
+                  <div>
+                    <h4 className="text-lg font-medium mb-3">Quality Assurance</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      {(() => {
+                        let features = [];
+                        try { features = JSON.parse(product.quality_features); } catch {}
+                        return features.map((feature: any, index: number) => (
+                          <div key={index} className="flex items-center gap-3">
+                            {feature.icon && typeof feature.icon === 'string' ? null : feature.icon && <feature.icon className="h-5 w-5 text-gray-700" />} {/* fallback if icon is a component */}
+                            <span className="text-sm text-gray-600">{feature.text}</span>
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                  </div>
+                )}
+              </div>
             </TabsContent>
 
             {/* Enhanced FAQ Tab */}

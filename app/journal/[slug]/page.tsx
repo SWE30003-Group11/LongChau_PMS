@@ -5,6 +5,7 @@ import { useParams } from "next/navigation"
 import { ArrowLeft, Twitter, Facebook, Share2, Link2 } from "lucide-react"
 import { useEffect, useState } from "react"
 import { healthArticles } from "../page" // Import from parent directory
+import React from "react"
 
 export default function HealthTipsArticlePage() {
   const params = useParams()
@@ -94,7 +95,7 @@ export default function HealthTipsArticlePage() {
             <div className="order-1 md:order-2">
               <div className="aspect-w-4 aspect-h-5 rounded-lg overflow-hidden bg-gray-100">
                 <img
-                  src={article.image || "/placeholder.svg"}
+                  src={article.image ? article.image : "/placeholder.svg"}
                   alt={article.title}
                   className="w-full h-full object-cover"
                 />
@@ -329,7 +330,7 @@ export default function HealthTipsArticlePage() {
                 >
                   <div className="aspect-w-16 aspect-h-9 rounded-lg overflow-hidden mb-4 bg-gray-100">
                     <img
-                      src={relatedArticle.image || "/placeholder.svg"}
+                      src={relatedArticle.image ? relatedArticle.image : "/placeholder.svg"}
                       alt={relatedArticle.title}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     />
