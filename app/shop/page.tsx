@@ -9,9 +9,11 @@ import { useState, useEffect } from "react"
 import { supabase } from "@/lib/supabase/client"
 
 // Helper function to get product image URL from storage
-function getProductImageUrl(productName: string): string {
+function getProductImageUrl(productName: string, updatedAt?: string | number): string {
   const { data } = supabase.storage.from('product-images').getPublicUrl(`${productName}.png`)
-  return data.publicUrl
+  // Use updatedAt if available, else fallback to Date.now()
+  const cacheBuster = updatedAt ? `?t=${updatedAt}` : `?t=${Date.now()}`;
+  return data.publicUrl + cacheBuster;
 }
 
 // Define Product type for Supabase data
@@ -26,6 +28,7 @@ interface Product {
   in_stock?: boolean
   manufacturer?: string | null
   inventory?: { quantity: number }[]
+  updated_at?: string | number
 }
 
 export default function ShopPage() {
@@ -43,37 +46,20 @@ export default function ShopPage() {
   const [selectedPriceRanges, setSelectedPriceRanges] = useState<string[]>([])
   const [pendingFilters, setPendingFilters] = useState(false)
 
-  // All filter options (could be dynamic from DB, but static for now)
-  const categoryOptions = [
-    "Pain Relief",
-    "Antibiotics",
-    "Vitamins & Supplements",
-    "Digestive Health",
-    "Allergy & Respiratory",
-    "Medical Devices",
-    "Personal Protection",
-    "Cough & Cold"
-  ]
-  const brandOptions = [
-    "DHG Pharma",
-    "Imexpharm",
-    "OPV",
-    "Domesco",
-    "Blackmores",
-    "Centrum",
-    "Stada",
-    "Bayer",
-    "Sanofi",
-    "Merck",
-    "BioGaia",
-    "Nature Made",
-    "Strepsils"
-  ]
-  const priceRanges = [
-    { label: "Under 50,000₫", value: "under-50000" },
-    { label: "50,000₫ - 200,000₫", value: "50000-200000" },
-    { label: "Above 200,000₫", value: "above-200000" }
-  ]
+  // Add dynamic options state
+  const [categoryOptions, setCategoryOptions] = useState<string[]>([])
+  const [brandOptions, setBrandOptions] = useState<string[]>([])
+
+  // Fetch filter options from DB
+  useEffect(() => {
+    async function fetchOptions() {
+      const { data: catData } = await supabase.from("products").select("category").neq("category", null)
+      const { data: brandData } = await supabase.from("products").select("manufacturer").neq("manufacturer", null)
+      setCategoryOptions(Array.from(new Set((catData || []).map((c: any) => c.category).filter(Boolean))))
+      setBrandOptions(Array.from(new Set((brandData || []).map((b: any) => b.manufacturer).filter(Boolean))))
+    }
+    fetchOptions()
+  }, [])
 
   // Filtering logic
   async function fetchProductsWithFilters() {
@@ -141,6 +127,13 @@ export default function ShopPage() {
     (currentPage - 1) * productsPerPage,
     currentPage * productsPerPage
   )
+
+  // Replace priceRanges in the filter UI
+  const priceRangeOptions = [
+    { label: "Under 50,000₫", value: "under-50000" },
+    { label: "50,000₫ - 200,000₫", value: "50000-200000" },
+    { label: "Above 200,000₫", value: "above-200000" }
+  ];
 
   return (
     <div className="min-h-screen">
@@ -216,29 +209,31 @@ export default function ShopPage() {
             <h3 className="text-sm font-medium uppercase tracking-wider mb-6">FILTERS</h3>
 
             <div className="space-y-6">
-              <Collapsible defaultOpen>
-                <CollapsibleTrigger className="flex items-center justify-between w-full text-left font-medium py-2 border-b border-gray-200">
-                  <span>CATEGORY</span>
-                  <ChevronDown className="h-4 w-4" />
-                </CollapsibleTrigger>
-                <CollapsibleContent className="pt-4 pb-2">
-                  <div className="space-y-2">
-                    {categoryOptions.map(option => (
-                      <div className="flex items-center" key={option}>
-                        <label className="flex items-center cursor-pointer">
-                          <input
-                            type="checkbox"
-                            className="rounded border-gray-300 text-gray-900 focus:ring-gray-900"
-                            checked={selectedCategories.includes(option)}
-                            onChange={() => handleCheckboxChange(option, selectedCategories, setSelectedCategories)}
-                          />
-                          <span className="ml-2 text-sm">{option}</span>
-                        </label>
-                      </div>
-                    ))}
-                  </div>
-                </CollapsibleContent>
-              </Collapsible>
+              {categoryOptions.length > 0 && (
+                <Collapsible defaultOpen>
+                  <CollapsibleTrigger className="flex items-center justify-between w-full text-left font-medium py-2 border-b border-gray-200">
+                    <span>CATEGORY</span>
+                    <ChevronDown className="h-4 w-4" />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="pt-4 pb-2">
+                    <div className="space-y-2">
+                      {categoryOptions.map(option => (
+                        <div className="flex items-center" key={option}>
+                          <label className="flex items-center cursor-pointer">
+                            <input
+                              type="checkbox"
+                              className="rounded border-gray-300 text-gray-900 focus:ring-gray-900"
+                              checked={selectedCategories.includes(option)}
+                              onChange={() => handleCheckboxChange(option, selectedCategories, setSelectedCategories)}
+                            />
+                            <span className="ml-2 text-sm">{option}</span>
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              )}
 
               <Collapsible>
                 <CollapsibleTrigger className="flex items-center justify-between w-full text-left font-medium py-2 border-b border-gray-200">
@@ -264,29 +259,31 @@ export default function ShopPage() {
                 </CollapsibleContent>
               </Collapsible>
 
-              <Collapsible>
-                <CollapsibleTrigger className="flex items-center justify-between w-full text-left font-medium py-2 border-b border-gray-200">
-                  <span>BRAND</span>
-                  <ChevronDown className="h-4 w-4" />
-                </CollapsibleTrigger>
-                <CollapsibleContent className="pt-4 pb-2">
-                  <div className="space-y-2">
-                    {brandOptions.map(option => (
-                      <div className="flex items-center" key={option}>
-                        <label className="flex items-center cursor-pointer">
-                          <input
-                            type="checkbox"
-                            className="rounded border-gray-300 text-gray-900 focus:ring-gray-900"
-                            checked={selectedBrands.includes(option)}
-                            onChange={() => handleCheckboxChange(option, selectedBrands, setSelectedBrands)}
-                          />
-                          <span className="ml-2 text-sm">{option}</span>
-                        </label>
-                      </div>
-                    ))}
-                  </div>
-                </CollapsibleContent>
-              </Collapsible>
+              {brandOptions.length > 0 && (
+                <Collapsible>
+                  <CollapsibleTrigger className="flex items-center justify-between w-full text-left font-medium py-2 border-b border-gray-200">
+                    <span>BRAND</span>
+                    <ChevronDown className="h-4 w-4" />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="pt-4 pb-2">
+                    <div className="space-y-2">
+                      {brandOptions.map(option => (
+                        <div className="flex items-center" key={option}>
+                          <label className="flex items-center cursor-pointer">
+                            <input
+                              type="checkbox"
+                              className="rounded border-gray-300 text-gray-900 focus:ring-gray-900"
+                              checked={selectedBrands.includes(option)}
+                              onChange={() => handleCheckboxChange(option, selectedBrands, setSelectedBrands)}
+                            />
+                            <span className="ml-2 text-sm">{option}</span>
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              )}
 
               <Collapsible>
                 <CollapsibleTrigger className="flex items-center justify-between w-full text-left font-medium py-2 border-b border-gray-200">
@@ -295,7 +292,7 @@ export default function ShopPage() {
                 </CollapsibleTrigger>
                 <CollapsibleContent className="pt-4 pb-2">
                   <div className="space-y-2">
-                    {priceRanges.map(range => (
+                    {priceRangeOptions.map(range => (
                       <div className="flex items-center" key={range.value}>
                         <label className="flex items-center cursor-pointer">
                           <input
@@ -367,7 +364,7 @@ export default function ShopPage() {
                         <Link href={`/shop/${product.id}`}>
                           <div className="w-full h-56 bg-gray-50 flex items-center justify-center">
                             <img
-                              src={getProductImageUrl(product.name) || "/placeholder.svg"}
+                              src={getProductImageUrl(product.name, product.updated_at) || "/placeholder.svg"}
                               alt={product.name}
                               className="w-full h-full object-cover object-center transition-transform duration-300 group-hover:scale-105"
                             />
@@ -412,7 +409,7 @@ export default function ShopPage() {
                                 id: product.id,
                                 name: product.name,
                                 price: product.price,
-                                image: getProductImageUrl(product.name),
+                                image: getProductImageUrl(product.name, product.updated_at),
                                 quantity: 1,
                                 prescriptionRequired: product.prescription_required
                               })

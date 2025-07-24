@@ -1,5 +1,8 @@
+"use client"
 import { ArrowRight } from "lucide-react"
 import Link from "next/link"
+import { useState } from "react"
+import { motion, AnimatePresence } from "framer-motion"
 
 export default function OffersSection() {
   return (
@@ -29,7 +32,7 @@ export default function OffersSection() {
             </div>
           </div>
 
-          <div className="bg-gray-50 p-8 rounded-lg">
+          <div className="bg-gray-50 p-8 rounded-lg h-full flex flex-col justify-center min-h-full" style={{ minHeight: '100%' }}>
             <h2 className="text-3xl md:text-4xl font-light text-gray-900 mb-4">
               MONTHLY
               <br />
@@ -43,14 +46,68 @@ export default function OffersSection() {
               Save up to 20% on selected items every month.
             </p>
 
-            <div className="mb-8">
-              <div className="rounded-lg overflow-hidden">
-                <img 
-                  src="/home/member-card.png"
-                  alt="Long Chau Membership Card"
-                  className="w-full h-auto object-cover"
-                />
-              </div>
+            <div className="mb-8 flex-1 flex items-center justify-center">
+              {/* Card Switcher State */}
+              {(() => {
+                const CARD_WIDTH = 480;
+                const CARD_HEIGHT = 300;
+                const [frontIsFirst, setFrontIsFirst] = useState(true);
+                // Animation variants for framer-motion
+                const cardVariants = {
+                  front: {
+                    zIndex: 10,
+                    scale: 1,
+                    rotate: -8,
+                    x: 0,
+                    y: 0,
+                    boxShadow: "0 16px 48px 0 rgba(31,41,55,0.18)",
+                    transition: { type: "spring", stiffness: 300, damping: 30 },
+                  },
+                  back: {
+                    zIndex: 0,
+                    scale: 0.95,
+                    rotate: 8,
+                    x: 60,
+                    y: 40,
+                    boxShadow: "0 8px 32px 0 rgba(31,41,55,0.12)",
+                    transition: { type: "spring", stiffness: 300, damping: 30 },
+                  },
+                };
+                return (
+                  <div className="relative" style={{ width: CARD_WIDTH + 60, height: CARD_HEIGHT + 60 }}>
+                    {/* Back Card */}
+                    <motion.div
+                      className="absolute cursor-pointer w-[480px] h-[300px] rounded-3xl overflow-hidden bg-white border border-gray-200"
+                      style={{ zIndex: frontIsFirst ? 0 : 10 }}
+                      animate={frontIsFirst ? "back" : "front"}
+                      variants={cardVariants}
+                      onClick={() => setFrontIsFirst(true)}
+                    >
+                      <img
+                        src="/home/member-card-2.png"
+                        alt="Long Chau Membership Card Back"
+                        className="w-full h-full object-cover select-none"
+                        draggable={false}
+                      />
+                    </motion.div>
+                    {/* Front Card */}
+                    <motion.div
+                      className="absolute cursor-pointer w-[480px] h-[300px] rounded-3xl overflow-hidden bg-white border border-gray-200"
+                      style={{ zIndex: frontIsFirst ? 10 : 0 }}
+                      animate={frontIsFirst ? "front" : "back"}
+                      variants={cardVariants}
+                      onClick={() => setFrontIsFirst(false)}
+                    >
+                      <img
+                        src="/home/member-card-1.png"
+                        alt="Long Chau Membership Card Front"
+                        className="w-full h-full object-cover select-none"
+                        draggable={false}
+                      />
+                    </motion.div>
+                  </div>
+                );
+              })()}
             </div>
 
             <div className="flex justify-end">

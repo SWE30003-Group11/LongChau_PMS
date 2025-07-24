@@ -20,6 +20,7 @@ import {
 } from "recharts"
 import { ArrowUp, ArrowDown, Users, ShoppingBag, Package, CreditCard, TrendingUp, Activity, FileText, Clock } from "lucide-react"
 import { motion } from "framer-motion"
+import { useAuth } from '@/contexts/AuthContext'
 
 // Minimal color palette matching the Long Chau style
 const COLORS = {
@@ -226,6 +227,7 @@ const recentActivities = [
 ]
 
 export default function PMSDashboard() {
+  const { profile } = useAuth();
   const [timeRange, setTimeRange] = useState("week")
   const [data, setData] = useState(getMockData("week"))
 
@@ -233,7 +235,8 @@ export default function PMSDashboard() {
     setData(getMockData(timeRange))
   }, [timeRange])
 
-  const { stats, salesData, categoryData, branchData } = data
+  const { stats, salesData, categoryData } = data // remove branchData
+  const userName = profile?.full_name || profile?.email?.split('@')[0] || 'User';
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -244,8 +247,8 @@ export default function PMSDashboard() {
           animate={{ opacity: 1, y: 0 }}
           className="mb-8"
         >
-          <h1 className="text-3xl font-light">Pharmacy Management System</h1>
-          <p className="text-gray-500 mt-1">Welcome back, Admin</p>
+          <h1 className="text-3xl font-light">Welcome back, <span className="font-semibold text-gray-900">{userName}</span></h1>
+          <p className="text-gray-500 mt-1">Pharmacy Management Dashboard</p>
         </motion.div>
 
         {/* Time Range Selector */}
@@ -316,26 +319,13 @@ export default function PMSDashboard() {
             </div>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={salesData}>
-                  <defs>
-                    <linearGradient id="salesGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={COLORS.primary} stopOpacity={0.1} />
-                      <stop offset="95%" stopColor={COLORS.primary} stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
-                  <XAxis dataKey="name" stroke={COLORS.secondary} fontSize={12} />
-                  <YAxis stroke={COLORS.secondary} fontSize={12} />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Area
-                    type="monotone"
-                    dataKey="sales"
-                    name="Revenue (₫1000)"
-                    stroke={COLORS.primary}
-                    strokeWidth={2}
-                    fill="url(#salesGradient)"
-                  />
-                </AreaChart>
+                <BarChart data={salesData} style={{ fontFamily: 'inherit' }}>
+                  <CartesianGrid strokeDasharray="2 6" stroke="#e5e7eb" vertical={false} />
+                  <XAxis dataKey="name" stroke="#222" fontSize={14} tickLine={false} axisLine={false} />
+                  <YAxis stroke="#222" fontSize={14} tickLine={false} axisLine={false} tickFormatter={v => v === 0 ? '' : `₫${v/1000}k`} />
+                  <Tooltip content={<CustomTooltip />} cursor={{ fill: '#00000508' }} wrapperStyle={{ borderRadius: 12, boxShadow: '0 4px 24px #0001' }} />
+                  <Bar dataKey="sales" name="Revenue" fill="#111" radius={[12, 12, 8, 8]} barSize={32} />
+                </BarChart>
               </ResponsiveContainer>
             </div>
           </motion.div>
@@ -388,69 +378,37 @@ export default function PMSDashboard() {
           </motion.div>
         </div>
 
-        {/* Second Row */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          {/* Branch Performance */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="bg-white p-6 rounded-2xl border border-gray-100"
-          >
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-lg font-light">Branch Performance</h3>
-              <Activity size={18} className="text-gray-400" />
-            </div>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={branchData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
-                  <XAxis dataKey="branch" stroke={COLORS.secondary} fontSize={12} />
-                  <YAxis stroke={COLORS.secondary} fontSize={12} />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Bar 
-                    dataKey="revenue" 
-                    name="Revenue (₫)" 
-                    fill={COLORS.primary} 
-                    radius={[10, 10, 0, 0]}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </motion.div>
-
-          {/* Recent Activity */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="bg-white p-6 rounded-2xl border border-gray-100"
-          >
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-lg font-light">Recent Activity</h3>
-              <Clock size={18} className="text-gray-400" />
-            </div>
-            <div className="space-y-4">
-              {recentActivities.map((activity, index) => (
-                <div key={index} className="flex items-start space-x-3">
-                  <div className={`w-2 h-2 rounded-full mt-1.5 ${
-                    activity.urgent ? 'bg-red-500' : 'bg-gray-300'
-                  }`} />
-                  <div className="flex-1">
-                    <p className="text-sm text-gray-900">{activity.action}</p>
-                    <p className="text-xs text-gray-500">{activity.details}</p>
-                  </div>
-                  <span className="text-xs text-gray-400">{activity.time}</span>
+        {/* Recent Activity - full width */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          className="bg-white p-6 rounded-2xl border border-gray-100 mb-8"
+        >
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-lg font-light">Recent Activity</h3>
+            <Clock size={18} className="text-gray-400" />
+          </div>
+          <div className="space-y-4">
+            {recentActivities.map((activity, index) => (
+              <div key={index} className="flex items-start space-x-3">
+                <div className={`w-2 h-2 rounded-full mt-1.5 ${
+                  activity.urgent ? 'bg-red-500' : 'bg-gray-300'
+                }`} />
+                <div className="flex-1">
+                  <p className="text-sm text-gray-900">{activity.action}</p>
+                  <p className="text-xs text-gray-500">{activity.details}</p>
                 </div>
-              ))}
-            </div>
-            <button className="w-full mt-4 py-2 text-sm text-gray-600 hover:text-gray-900 transition-colors">
-              View all activity →
-            </button>
-          </motion.div>
-        </div>
+                <span className="text-xs text-gray-400">{activity.time}</span>
+              </div>
+            ))}
+          </div>
+          <button className="w-full mt-4 py-2 text-sm text-gray-600 hover:text-gray-900 transition-colors">
+            View all activity →
+          </button>
+        </motion.div>
 
-        {/* Quick Actions */}
+        {/* Quick Actions - full width */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}

@@ -131,6 +131,23 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null
 }
 
+const RotatedTick = (props: any) => {
+  const { x, y, payload } = props;
+  return (
+    <text
+      x={x}
+      y={y}
+      dy={10}
+      textAnchor="end"
+      fill="#222"
+      fontSize={12}
+      transform={`rotate(-30,${x},${y})`}
+    >
+      {payload.value}
+    </text>
+  );
+};
+
 export default function ReportsPage() {
   const [timeRange, setTimeRange] = useState("month")
   const [activeTab, setActiveTab] = useState("sales")
@@ -291,29 +308,19 @@ export default function ReportsPage() {
               </div>
               <div className="h-80">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={monthlySalesData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
-                    <XAxis dataKey="name" stroke={COLORS.secondary} fontSize={12} />
-                    <YAxis stroke={COLORS.secondary} fontSize={12} />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Legend />
-                    <Area
-                      type="monotone"
-                      dataKey="sales"
-                      name="Sales (₫)"
-                      stroke={COLORS.primary}
-                      fill={COLORS.chart5}
-                      strokeWidth={2}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="target"
-                      name="Target (₫)"
-                      stroke={COLORS.secondary}
-                      fill={COLORS.chart4}
-                      strokeWidth={2}
-                      strokeDasharray="5 5"
-                    />
+                  <AreaChart data={monthlySalesData} style={{ fontFamily: 'inherit' }}>
+                    <defs>
+                      <linearGradient id="salesGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#111" stopOpacity={0.12} />
+                        <stop offset="95%" stopColor="#111" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="2 6" stroke="#e5e7eb" vertical={false} />
+                    <XAxis dataKey="name" stroke="#222" fontSize={14} tickLine={false} axisLine={false} />
+                    <YAxis stroke="#222" fontSize={14} tickLine={false} axisLine={false} tickFormatter={v => v === 0 ? '' : `₫${v/1000000}M`} />
+                    <Tooltip content={<CustomTooltip />} cursor={{ fill: '#00000508' }} wrapperStyle={{ borderRadius: 12, boxShadow: '0 4px 24px #0001' }} />
+                    <Area type="monotone" dataKey="sales" name="Sales" stroke="#111" strokeWidth={2} fill="url(#salesGradient)" />
+                    <Area type="monotone" dataKey="target" name="Target" stroke="#666" strokeWidth={2} fill="#f5f5f5" strokeDasharray="5 5" />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
@@ -329,15 +336,14 @@ export default function ReportsPage() {
               <h3 className="text-lg font-light mb-6">Orders vs Sales Correlation</h3>
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={monthlySalesData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
-                    <XAxis dataKey="name" stroke={COLORS.secondary} fontSize={12} />
-                    <YAxis yAxisId="left" stroke={COLORS.secondary} fontSize={12} />
-                    <YAxis yAxisId="right" orientation="right" stroke={COLORS.secondary} fontSize={12} />
+                  <BarChart data={monthlySalesData} style={{ fontFamily: 'inherit' }}>
+                    <CartesianGrid strokeDasharray="2 6" stroke="#e5e7eb" vertical={false} />
+                    <XAxis dataKey="name" stroke="#222" fontSize={14} tickLine={false} axisLine={false} />
+                    <YAxis yAxisId="left" stroke="#222" fontSize={14} tickLine={false} axisLine={false} />
+                    <YAxis yAxisId="right" orientation="right" stroke="#222" fontSize={14} tickLine={false} axisLine={false} />
                     <Tooltip content={<CustomTooltip />} />
-                    <Legend />
-                    <Bar yAxisId="left" dataKey="orders" name="Orders" fill={COLORS.chart3} radius={[10, 10, 0, 0]} />
-                    <Line yAxisId="right" type="monotone" dataKey="sales" name="Sales (₫)" stroke={COLORS.primary} strokeWidth={2} dot={{ r: 4 }} />
+                    <Bar yAxisId="left" dataKey="orders" name="Orders" fill="#999" radius={[12, 12, 8, 8]} barSize={32} />
+                    <Line yAxisId="right" type="monotone" dataKey="sales" name="Sales (₫)" stroke="#111" strokeWidth={2} dot={{ r: 4 }} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -359,7 +365,7 @@ export default function ReportsPage() {
                 <h3 className="text-lg font-light mb-6">Product Categories</h3>
                 <div className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
+                    <PieChart style={{ fontFamily: 'inherit' }}>
                       <Pie
                         data={productCategoryData}
                         cx="50%"
@@ -532,14 +538,22 @@ export default function ReportsPage() {
               <h3 className="text-lg font-light mb-6">Branch Performance</h3>
               <div className="h-80">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={branchPerformanceData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
-                    <XAxis dataKey="name" stroke={COLORS.secondary} fontSize={12} />
-                    <YAxis stroke={COLORS.secondary} fontSize={12} />
+                  <BarChart data={branchPerformanceData} style={{ fontFamily: 'inherit' }} margin={{ left: 0, right: 0, top: 0, bottom: 32 }}>
+                    <CartesianGrid strokeDasharray="2 6" stroke="#e5e7eb" vertical={false} />
+                    <XAxis
+                      dataKey="name"
+                      stroke="#222"
+                      fontSize={12}
+                      tickLine={false}
+                      axisLine={false}
+                      tick={<RotatedTick />}
+                      interval={0}
+                      height={60}
+                    />
+                    <YAxis stroke="#222" fontSize={14} tickLine={false} axisLine={false} tickFormatter={v => v === 0 ? '' : `₫${v/1000000}M`} />
                     <Tooltip content={<CustomTooltip />} />
-                    <Legend />
-                    <Bar dataKey="sales" name="Sales (₫)" fill={COLORS.primary} radius={[10, 10, 0, 0]} />
-                    <Bar dataKey="target" name="Target (₫)" fill={COLORS.chart3} radius={[10, 10, 0, 0]} />
+                    <Bar dataKey="sales" name="Sales (₫)" fill="#111" radius={[12, 12, 8, 8]} barSize={32} />
+                    <Bar dataKey="target" name="Target (₫)" fill="#999" radius={[12, 12, 8, 8]} barSize={32} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -657,14 +671,13 @@ export default function ReportsPage() {
               <h3 className="text-lg font-light mb-6">Customer Demographics</h3>
               <div className="h-80">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={customerDemographicsData} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
-                    <XAxis type="number" stroke={COLORS.secondary} fontSize={12} />
-                    <YAxis dataKey="name" type="category" stroke={COLORS.secondary} fontSize={12} />
+                  <BarChart data={customerDemographicsData} layout="vertical" style={{ fontFamily: 'inherit' }}>
+                    <CartesianGrid strokeDasharray="2 6" stroke="#e5e7eb" horizontal={true} vertical={false} />
+                    <XAxis type="number" stroke="#222" fontSize={14} tickLine={false} axisLine={false} />
+                    <YAxis dataKey="name" type="category" stroke="#222" fontSize={14} tickLine={false} axisLine={false} />
                     <Tooltip content={<CustomTooltip />} />
-                    <Legend />
-                    <Bar dataKey="male" name="Male" fill={COLORS.chart2} radius={[0, 10, 10, 0]} />
-                    <Bar dataKey="female" name="Female" fill={COLORS.chart3} radius={[0, 10, 10, 0]} />
+                    <Bar dataKey="male" name="Male" fill="#666" radius={[0, 10, 10, 0]} barSize={24} />
+                    <Bar dataKey="female" name="Female" fill="#999" radius={[0, 10, 10, 0]} barSize={24} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -716,19 +729,19 @@ export default function ReportsPage() {
                 <h3 className="text-lg font-light mb-6">Customer Acquisition</h3>
                 <div className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={monthlySalesData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
-                      <XAxis dataKey="name" stroke={COLORS.secondary} fontSize={12} />
-                      <YAxis stroke={COLORS.secondary} fontSize={12} />
+                    <LineChart data={monthlySalesData} style={{ fontFamily: 'inherit' }}>
+                      <CartesianGrid strokeDasharray="2 6" stroke="#e5e7eb" vertical={false} />
+                      <XAxis dataKey="name" stroke="#222" fontSize={14} tickLine={false} axisLine={false} />
+                      <YAxis stroke="#222" fontSize={14} tickLine={false} axisLine={false} />
                       <Tooltip content={<CustomTooltip />} />
                       <Line
                         type="monotone"
                         dataKey="orders"
                         name="New Customers"
-                        stroke={COLORS.primary}
+                        stroke="#111"
                         strokeWidth={2}
-                        dot={{ r: 4, fill: COLORS.primary }}
-                        activeDot={{ r: 6, fill: COLORS.primary }}
+                        dot={{ r: 4, fill: '#111' }}
+                        activeDot={{ r: 6, fill: '#111' }}
                       />
                     </LineChart>
                   </ResponsiveContainer>

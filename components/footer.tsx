@@ -98,7 +98,7 @@ export default function Footer() {
                 
                 {/* Brand description */}
                 <p className="text-slate-600 font-light leading-relaxed max-w-md">
-                  A premium pharmacy chain dedicated to excellence in healthcare services and product quality since 2025.
+                  A premium pharmacy chain dedicated to excellence in healthcare services and product quality since 2007.
                 </p>
               </div>
               
@@ -172,7 +172,7 @@ export default function Footer() {
                 </h4>
                 <ul className="space-y-3">
                   <li>
-                    <FooterLink href="https://facebook.com" className="flex items-center gap-2">
+                    <FooterLink href="https://www.facebook.com/Nhathuocfptlongchau" className="flex items-center gap-2">
                       <Facebook size={16} />
                       <span>Facebook</span>
                     </FooterLink>
