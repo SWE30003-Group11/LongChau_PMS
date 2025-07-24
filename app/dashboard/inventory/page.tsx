@@ -182,62 +182,104 @@ export default function InventoryPage() {
       setImageUploadStatus('Uploaded successfully!');
     }
   }
+  
   async function handleSaveProduct() {
-    setSaving(true);
-    setError(null);
-    if (!imageFileRef.current || !imageFileRef.current.files || !imageFileRef.current.files[0]) {
-      setError('Please select an image before submitting the product.');
-      setSaving(false);
-      return;
-    }
-    try {
-      // Only send allowed fields to the products table
-      const allowedFields = [
-        'name', 'generic_name', 'price', 'original_price', 'category', 'prescription_required', 'in_stock', 'manufacturer', 'pack_size', 'strength', 'description', 'mechanism_of_action', 'indications', 'warranty', 'storage', 'pregnancy_category', 'lactation', 'supplier_id'
-      ];
-      const productData: { [key: string]: any } = {};
-      allowedFields.forEach(field => {
-        if (form[field] !== undefined) productData[field] = form[field];
-      });
-      if (!productData.name) {
-        setError('Product name is required.');
-        setSaving(false);
-        return;
-      }
-      // Insert product first
-      const { data, error: insertError } = await supabase.from('products').insert([productData]).select('id, name').single();
-      if (insertError) {
-        setError('Product insert failed: ' + insertError.message);
-        setSaving(false);
-        return;
-      }
-      // Now upload the image using the product name as filename (exact match, including spaces and case)
-      const file = imageFileRef.current.files[0];
-      if (!file.type.startsWith('image/png')) {
-        setError('Please upload a PNG image for consistency.');
-        console.error('Image upload failed: not a PNG file', file);
-        setSaving(false);
-        return;
-      }
-      const fileName = `${data.name}.png`;
-      console.log('Uploading image:', { productName: data.name, file, fileName });
-      const { data: uploadData, error: uploadError } = await supabase.storage.from('product-images').upload(fileName, file, { upsert: true });
-      console.log('Upload response:', { uploadData, uploadError });
-      if (uploadError) {
-        setError('Image upload failed: ' + uploadError.message);
-        console.error('Image upload error:', uploadError);
-        setSaving(false);
-        return;
-      }
-      setShowAddEdit(false);
-      setImagePreview(null);
-      if (imageFileRef.current) imageFileRef.current.value = "";
-      fetchData();
-    } catch (err: any) {
-      setError('Unexpected error: ' + err.message);
-    }
-    setSaving(false);
+	setSaving(true);
+	setError(null);
+  
+	try {
+	  // Check if product already exists
+	  const { data: existingProducts, error: checkError } = await supabase
+		.from('products')
+		.select('id, name, generic_name')
+		.or(`name.ilike."${form.name}",generic_name.ilike."${form.generic_name}"`)
+		.maybeSingle();
+  
+	  if (checkError) {
+		throw new Error('Error checking for duplicate products');
+	  }
+  
+	  if (existingProducts) {
+		setError('A product with this name or generic name already exists.');
+		setSaving(false);
+		return;
+	  }
+  
+	  // Continue with existing validation
+	  if (!imageFileRef.current || !imageFileRef.current.files || !imageFileRef.current.files[0]) {
+		setError('Please select an image before submitting the product.');
+		setSaving(false);
+		return;
+	  }
+  
+	  // Only send allowed fields to the products table
+	  const allowedFields = [
+		'name', 'generic_name', 'price', 'original_price', 'category', 
+		'prescription_required', 'in_stock', 'manufacturer', 'pack_size', 
+		'strength', 'description', 'mechanism_of_action', 'indications', 
+		'warranty', 'storage', 'pregnancy_category', 'lactation', 'supplier_id'
+	  ];
+  
+	  const productData: { [key: string]: any } = {};
+	  allowedFields.forEach(field => {
+		if (form[field] !== undefined) productData[field] = form[field];
+	  });
+  
+	  if (!productData.name) {
+		setError('Product name is required.');
+		setSaving(false);
+		return;
+	  }
+  
+	  // Insert product
+	  const { data, error: insertError } = await supabase
+		.from('products')
+		.insert([productData])
+		.select('id, name')
+		.single();
+  
+	  if (insertError) {
+		setError('Product insert failed: ' + insertError.message);
+		setSaving(false);
+		return;
+	  }
+  
+	  // Upload image using the product name
+	  const file = imageFileRef.current.files[0];
+	  if (!file.type.startsWith('image/png')) {
+		setError('Please upload a PNG image for consistency.');
+		console.error('Image upload failed: not a PNG file', file);
+		setSaving(false);
+		return;
+	  }
+  
+	  const fileName = `${data.name}.png`;
+	  const { error: uploadError } = await supabase.storage
+		.from('product-images')
+		.upload(fileName, file, {
+		  cacheControl: '3600',
+		  upsert: true
+		});
+  
+	  if (uploadError) {
+		setError('Image upload failed: ' + uploadError.message);
+		console.error('Image upload error:', uploadError);
+		setSaving(false);
+		return;
+	  }
+  
+	  setShowAddEdit(false);
+	  setImagePreview(null);
+	  if (imageFileRef.current) imageFileRef.current.value = "";
+	  fetchData();
+  
+	} catch (err: any) {
+	  setError('Unexpected error: ' + err.message);
+	  console.error('Save error:', err);
+	}
+	setSaving(false);
   }
+
   // Delete Product
   function openDeleteProduct(product: any) {
     setDeleteProduct(product)
