@@ -1,8 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
-import { ArrowLeft, Upload, Camera, FileText, Check, AlertCircle, Clock, Shield, Phone, MessageCircle, Image, File, X, Eye, Download, Trash2, Plus } from "lucide-react"
+import { ArrowLeft, Upload, Camera, FileText, Check, AlertCircle, Clock, Shield, Phone, MessageCircle, Image, File, X, Eye, Download, Trash2, Plus, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -12,6 +12,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { motion, AnimatePresence } from "framer-motion"
 import { cn } from "@/lib/utils"
+import { supabase } from "@/lib/supabase/client"
+import { useAuth } from "@/contexts/AuthContext"
 
 interface UploadedFile {
   id: string
@@ -66,66 +68,78 @@ export default function PrescriptionUploadPage() {
   })
   const [consultationRequested, setConsultationRequested] = useState(false)
   const [dragActive, setDragActive] = useState(false)
+  const { user, profile, loading } = useAuth();
+
+  // Robust auto-fill: only fill fields that are empty
+  useEffect(() => {
+    if (profile) {
+      setPatientInfo((prev) => ({
+        fullName: prev.fullName || profile.full_name || "",
+        dateOfBirth: prev.dateOfBirth || profile.date_of_birth || "",
+        phone: prev.phone || profile.phone || "",
+        idNumber: prev.idNumber || profile.id_number || "",
+        address: prev.address || profile.address || "",
+        medicalConditions: prev.medicalConditions || profile.medical_conditions || "",
+        allergies: prev.allergies || profile.allergies || "",
+      }));
+    }
+  }, [profile]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-600" />
+      </div>
+    );
+  }
 
   // Handle file upload
   const handleFileUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return
-
+    if (!user) {
+      alert("You must be logged in to upload prescriptions.");
+      return;
+    }
     setIsUploading(true)
     const newFiles: UploadedFile[] = []
-
     for (let i = 0; i < files.length; i++) {
       const file = files[i]
       const id = `file-${Date.now()}-${i}`
-      
-      // Create preview for images
       let preview: string | undefined
       if (file.type.startsWith('image/')) {
         preview = URL.createObjectURL(file)
       }
-
       const uploadedFile: UploadedFile = {
         id,
         file,
         preview,
         status: "uploading"
       }
-
       newFiles.push(uploadedFile)
     }
-
     setUploadedFiles(prev => [...prev, ...newFiles])
-
-    // Simulate upload and processing
+    // Upload to Supabase Storage
     for (const uploadedFile of newFiles) {
-      await new Promise(resolve => setTimeout(resolve, 1500))
-      
-      setUploadedFiles(prev => 
-        prev.map(f => 
-          f.id === uploadedFile.id 
-            ? { ...f, status: "processing" }
-            : f
-        )
-      )
-
-      await new Promise(resolve => setTimeout(resolve, 2000))
-      
-      // Simulate validation (90% success rate)
-      const isValid = Math.random() > 0.1
-      
-      setUploadedFiles(prev => 
-        prev.map(f => 
-          f.id === uploadedFile.id 
-            ? { 
-                ...f, 
-                status: isValid ? "pending" : "rejected",
-                rejectionReason: isValid ? undefined : "Prescription is expired or illegible. Please upload a clearer image."
-              }
-            : f
-        )
-      )
+      try {
+        const filePath = `${user.id}/${Date.now()}-${uploadedFile.file.name}`
+        const { data, error } = await supabase.storage.from('prescriptions').upload(filePath, uploadedFile.file, {
+          cacheControl: '3600',
+          upsert: false
+        })
+        if (error) throw error
+        // Get public URL
+        const { data: urlData } = supabase.storage.from('prescriptions').getPublicUrl(filePath)
+        // Insert into prescriptions table
+        await supabase.from('prescriptions').insert({
+          user_id: user.id,
+          file_url: urlData.publicUrl,
+          file_name: uploadedFile.file.name,
+        })
+        setUploadedFiles(prev => prev.map(f => f.id === uploadedFile.id ? { ...f, status: "pending" } : f))
+      } catch (err) {
+        setUploadedFiles(prev => prev.map(f => f.id === uploadedFile.id ? { ...f, status: "rejected", rejectionReason: (err as Error).message } : f))
+      }
     }
-
     setIsUploading(false)
   }
 

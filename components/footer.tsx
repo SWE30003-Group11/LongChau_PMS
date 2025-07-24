@@ -121,50 +121,56 @@ export default function Footer() {
             
             {/* Navigation columns */}
             <div className="md:w-3/5 grid grid-cols-2 md:grid-cols-3 gap-8">
-              {/* Explore column */}
+              {/* Main Navigation column */}
               <div>
                 <h4 className="text-sm font-medium text-slate-800 mb-4 relative inline-block after:absolute after:bottom-0 after:left-0 after:w-8 after:h-px after:bg-slate-200">
-                  Explore
+                  Navigation
                 </h4>
                 <ul className="space-y-3">
-                  {["Shop", "Philosophy", "Gallery", "Journal", "Sign In"].map((item) => (
-                    <li key={item}>
-                      <FooterLink href={`/${item.toLowerCase().replace(' ', '-')}`}>
-                        {item}
+                  {[
+                    { name: "Home", href: "/" },
+                    { name: "Shop", href: "/shop" },
+                    { name: "About Us", href: "/about-us" },
+                    { name: "Gallery", href: "/gallery" },
+                    { name: "Health Tips & Advice", href: "/journal" },
+                  ].map((item) => (
+                    <li key={item.name}>
+                      <FooterLink href={item.href}>
+                        {item.name}
                       </FooterLink>
                     </li>
                   ))}
                 </ul>
               </div>
               
-              {/* Support column */}
+              {/* Customer Service column */}
               <div>
                 <h4 className="text-sm font-medium text-slate-800 mb-4 relative inline-block after:absolute after:bottom-0 after:left-0 after:w-8 after:h-px after:bg-slate-200">
-                  Support
+                  Customer Service
                 </h4>
                 <ul className="space-y-3">
-                  {["FAQ", "Shipping", "Returns", "Privacy Policy", "Terms of Service"].map((item) => (
-                    <li key={item}>
-                      <FooterLink href={`/${item.toLowerCase().replace(' ', '-')}`}>
-                        {item}
+                  {[
+                    { name: "FAQ", href: "/faq" },
+                    { name: "Shipping", href: "/shipping" },
+                    { name: "Returns", href: "/returns" },
+                    { name: "Privacy Policy", href: "/privacy-policy" },
+                    { name: "Terms of Service", href: "/terms-of-service" },
+                  ].map((item) => (
+                    <li key={item.name}>
+                      <FooterLink href={item.href}>
+                        {item.name}
                       </FooterLink>
                     </li>
                   ))}
                 </ul>
               </div>
               
-              {/* Social column */}
+              {/* Connect column */}
               <div>
                 <h4 className="text-sm font-medium text-slate-800 mb-4 relative inline-block after:absolute after:bottom-0 after:left-0 after:w-8 after:h-px after:bg-slate-200">
                   Connect
                 </h4>
                 <ul className="space-y-3">
-                  <li>
-                    <FooterLink href="https://instagram.com" className="flex items-center gap-2">
-                      <Instagram size={16} />
-                      <span>Instagram</span>
-                    </FooterLink>
-                  </li>
                   <li>
                     <FooterLink href="https://facebook.com" className="flex items-center gap-2">
                       <Facebook size={16} />
@@ -175,7 +181,6 @@ export default function Footer() {
               </div>
             </div>
           </div>
-          
           {/* Footer bottom */}
           <div className="mt-16 pt-6 border-t border-slate-100 flex flex-col md:flex-row justify-between items-center">
             <div className="text-sm text-slate-500 font-light mb-4 md:mb-0">

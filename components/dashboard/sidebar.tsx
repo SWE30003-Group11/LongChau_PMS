@@ -74,6 +74,49 @@ export default function Sidebar() {
   const router = useRouter();
   const buttonRef = useRef<HTMLButtonElement>(null);
   const { user, profile, signOut } = useAuth();
+  const [pendingOrderCount, setPendingOrderCount] = useState<number>(0);
+  const [pendingPrescriptionCount, setPendingPrescriptionCount] = useState<number>(0);
+  const [orderCount, setOrderCount] = useState<number | null>(null)
+
+  useEffect(() => {
+    async function fetchPendingOrders() {
+      if (!profile?.current_branch_id) {
+        setPendingOrderCount(0);
+        return;
+      }
+      const { count } = await supabase
+        .from('orders')
+        .select('id', { count: 'exact', head: true })
+        .in('status', ['pending', 'processing'])
+        .eq('branch_id', profile.current_branch_id);
+      setPendingOrderCount(count || 0);
+    }
+    fetchPendingOrders();
+  }, [profile?.current_branch_id]);
+
+  useEffect(() => {
+    async function fetchPendingPrescriptions() {
+      if (!profile?.current_branch_id) {
+        setPendingPrescriptionCount(0);
+        return;
+      }
+      const { count } = await supabase
+        .from('prescriptions')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'pending')
+        .eq('branch_id', profile.current_branch_id);
+      setPendingPrescriptionCount(count || 0);
+    }
+    fetchPendingPrescriptions();
+  }, [profile?.current_branch_id]);
+
+  useEffect(() => {
+    async function fetchOrderCount() {
+      const { count } = await supabase.from('orders').select('id', { count: 'exact', head: true })
+      setOrderCount(count ?? null)
+    }
+    fetchOrderCount()
+  }, [])
 
   const handleLogout = async () => {
     await signOut();
@@ -83,6 +126,32 @@ export default function Sidebar() {
   const formatRole = (role: string | undefined) => {
     if (!role) return "Staff";
     return role.charAt(0).toUpperCase() + role.slice(1);
+  };
+
+  const getTabsForRole = (role: string | undefined) => {
+    if (role === 'admin') {
+      return menuItems.map(item =>
+        item.name === 'Orders'
+          ? { ...item, badge: pendingOrderCount }
+          : item.name === 'Prescriptions'
+            ? { ...item, badge: pendingPrescriptionCount }
+            : item
+      );
+    } else if (role === 'pharmacist') {
+      return menuItems.filter(item => [
+        'Orders', 'Inventory', 'Prescriptions', 'Customers'
+      ].includes(item.name)).map(item =>
+        item.name === 'Orders'
+          ? { ...item, badge: pendingOrderCount }
+          : item.name === 'Prescriptions'
+            ? { ...item, badge: pendingPrescriptionCount }
+            : item
+      );
+    } else if (role === 'staff') {
+      return menuItems.filter(item => item.name === 'Inventory');
+    } else {
+      return [];
+    }
   };
 
   return (
@@ -122,8 +191,10 @@ export default function Sidebar() {
       {/* Navigation Menu */}
       <div className="flex-1 overflow-y-auto py-4">
         <nav className="px-3 space-y-1">
-          {menuItems.map((item) => {
+          {(getTabsForRole(profile?.role)).map((item) => {
             const isActive = pathname === item.href;
+            // Show real badge for Prescriptions
+            const badge = item.name === 'Prescriptions' ? pendingPrescriptionCount : (typeof item.badge === 'number' ? item.badge : 0);
             return (
               <Link
                 key={item.name}
@@ -142,20 +213,18 @@ export default function Sidebar() {
                     size={collapsed ? 20 : 18}
                     className="flex-shrink-0"
                   />
-
                   {/* Badge for notifications */}
-                  {item.badge && (
+                  {badge > 0 && (
                     <div
                       className={cn(
                         "absolute -top-1 -right-1 bg-red-500 text-white text-[10px] min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full",
                         !collapsed && "scale-90"
                       )}
                     >
-                      {item.badge}
+                      {badge}
                     </div>
                   )}
                 </div>
-
                 <span
                   className={cn(
                     "ml-3 text-sm transition-all duration-300",

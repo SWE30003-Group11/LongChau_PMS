@@ -66,8 +66,8 @@ export default function VitaminsSupplementsPage() {
             <div className="order-1 md:order-2">
               <div className="aspect-w-4 aspect-h-5 rounded-lg overflow-hidden bg-gray-100">
                 <img
-                  src="/images/vitamins-supplements-hero.jpg"
-                  alt="Various vitamins and supplements"
+                  src="/journal/essential-vitamins-supplements-guide.webp"
+                  alt="Vitamins and supplements"
                   className="w-full h-full object-cover"
                 />
               </div>
@@ -389,7 +389,7 @@ export default function VitaminsSupplementsPage() {
               <Link href="/journal/understanding-your-medications-guide" className="group">
                 <div className="aspect-w-16 aspect-h-9 rounded-lg overflow-hidden mb-4 bg-gray-100">
                   <img
-                    src="/images/medication-guide-hero.jpg"
+                    src="/journal/understanding-your-medications-guide.webp"
                     alt="Understanding medications"
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   />
@@ -402,7 +402,7 @@ export default function VitaminsSupplementsPage() {
               <Link href="/journal/seasonal-health-flu-prevention" className="group">
                 <div className="aspect-w-16 aspect-h-9 rounded-lg overflow-hidden mb-4 bg-gray-100">
                   <img
-                    src="/images/flu-prevention.jpg"
+                    src="/journal/seasonal-health-flu-prevention.jpg"
                     alt="Flu prevention"
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   />
@@ -412,11 +412,11 @@ export default function VitaminsSupplementsPage() {
                 </h4>
                 <p className="text-sm text-gray-500 mt-2">5 March 2025</p>
               </Link>
-              <Link href="/journal/managing-chronic-conditions-diabetes" className="group">
+              <Link href="/journal/antibiotic-resistance-awareness" className="group">
                 <div className="aspect-w-16 aspect-h-9 rounded-lg overflow-hidden mb-4 bg-gray-100">
                   <img
-                    src="/images/diabetes-care.jpg"
-                    alt="Diabetes care"
+                    src="/journal/antibiotic-resistance-awareness.jpg"
+                    alt="Antibiotic resistance"
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   />
                 </div>

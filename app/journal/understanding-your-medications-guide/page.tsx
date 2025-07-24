@@ -30,42 +30,19 @@ export default function MedicationGuidePage() {
   return (
     <div className="min-h-screen">
       {/* Hero Section */}
-      <div className="relative h-screen">
-        <div
-          className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: "url('/images/pharmacy-consultation.jpg')" }}
-        >
-          <div className="absolute inset-0 bg-gradient-to-b from-black/60 to-black/40"></div>
+      <div className="relative h-96 flex items-center justify-center bg-gray-100 mb-12">
+        <img
+          src="/journal/understanding-your-medications-guide.webp"
+          alt="Understanding Your Medications"
+          className="w-full h-full object-cover rounded-lg"
+          style={{ maxHeight: '24rem' }}
+        />
+        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 bg-blue-900 bg-opacity-80 text-white px-8 py-4 rounded-lg shadow-lg">
+          <div className="text-white/70 mb-2 text-center">15 March 2025 • By Dr. Pham Thi Mai, Chief Pharmacist</div>
+          <h1 className="text-3xl md:text-5xl font-light mb-0 text-center">
+            Understanding Your <span className="italic font-serif">Medications</span>: A Complete Guide to Safe Usage
+          </h1>
         </div>
-
-        <div className="relative h-full flex items-center">
-          <div className="container mx-auto px-4">
-            <div className="max-w-4xl mx-auto text-white">
-              <div className="text-white/70 mb-4">15 March 2025 • By Dr. Pham Thi Mai, Chief Pharmacist</div>
-              <h1 className="text-5xl md:text-7xl font-light mb-6">
-                Understanding Your <span className="italic font-serif">Medications</span>: A Complete Guide to Safe Usage
-              </h1>
-            </div>
-          </div>
-        </div>
-
-        {/* Scroll indicator */}
-        {showScrollIndicator && (
-          <div className="absolute bottom-10 right-10 animate-bounce">
-            <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-lg">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 5L12 19" stroke="black" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                <path
-                  d="M19 12L12 19L5 12"
-                  stroke="black"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Fixed social sharing sidebar */}
@@ -305,11 +282,11 @@ export default function MedicationGuidePage() {
               <span className="italic">related</span> ARTICLES
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              <Link href="/journal/antibiotic-resistance-awareness" className="group">
+              <Link href="/journal/seasonal-health-flu-prevention" className="group">
                 <div className="aspect-w-16 aspect-h-9 rounded-lg overflow-hidden mb-4 bg-gray-100">
                   <img
-                    src="/images/antibiotic-resistance.jpg"
-                    alt="Antibiotic resistance"
+                    src="/journal/seasonal-health-flu-prevention.jpg"
+                    alt="Flu prevention"
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   />
                 </div>
@@ -321,8 +298,8 @@ export default function MedicationGuidePage() {
               <Link href="/journal/essential-vitamins-supplements-guide" className="group">
                 <div className="aspect-w-16 aspect-h-9 rounded-lg overflow-hidden mb-4 bg-gray-100">
                   <img
-                    src="/images/vitamins-guide.jpg"
-                    alt="Vitamins and supplements"
+                    src="/journal/essential-vitamins-supplements-guide.webp"
+                    alt="Vitamins guide"
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   />
                 </div>
@@ -331,11 +308,11 @@ export default function MedicationGuidePage() {
                 </h4>
                 <p className="text-sm text-gray-500 mt-2">28 February 2025</p>
               </Link>
-              <Link href="/journal/managing-chronic-conditions-diabetes" className="group">
+              <Link href="/journal/antibiotic-resistance-awareness" className="group">
                 <div className="aspect-w-16 aspect-h-9 rounded-lg overflow-hidden mb-4 bg-gray-100">
                   <img
-                    src="/images/diabetes-care.jpg"
-                    alt="Diabetes management"
+                    src="/journal/antibiotic-resistance-awareness.jpg"
+                    alt="Antibiotic resistance"
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   />
                 </div>

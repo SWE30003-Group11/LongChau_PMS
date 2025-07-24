@@ -1,98 +1,70 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Search, Filter, Eye, Download, ArrowUpDown, ShoppingBag, Clock, CheckCircle } from "lucide-react"
 import { motion } from "framer-motion"
-
-// Mock orders data
-const orders = [
-  {
-    id: "ORD-12345",
-    customer: "Nguyen Van A",
-    date: "2025-05-19",
-    time: "14:30",
-    status: "Completed",
-    items: 3,
-    total: 125000,
-    payment: "Credit Card",
-  },
-  {
-    id: "ORD-12344",
-    customer: "Tran Thi B",
-    date: "2025-05-19",
-    time: "13:45",
-    status: "Processing",
-    items: 2,
-    total: 85000,
-    payment: "Cash",
-  },
-  {
-    id: "ORD-12343",
-    customer: "Le Van C",
-    date: "2025-05-18",
-    time: "10:20",
-    status: "Pending",
-    items: 5,
-    total: 320000,
-    payment: "E-wallet",
-  },
-  {
-    id: "ORD-12342",
-    customer: "Pham Thi D",
-    date: "2025-05-18",
-    time: "09:15",
-    status: "Completed",
-    items: 1,
-    total: 45000,
-    payment: "Credit Card",
-  },
-  {
-    id: "ORD-12341",
-    customer: "Hoang Van E",
-    date: "2025-05-17",
-    time: "16:45",
-    status: "Cancelled",
-    items: 4,
-    total: 210000,
-    payment: "Cash",
-  },
-  {
-    id: "ORD-12340",
-    customer: "Nguyen Thi F",
-    date: "2025-05-17",
-    time: "11:30",
-    status: "Completed",
-    items: 2,
-    total: 95000,
-    payment: "E-wallet",
-  },
-  {
-    id: "ORD-12339",
-    customer: "Tran Van G",
-    date: "2025-05-16",
-    time: "15:20",
-    status: "Processing",
-    items: 3,
-    total: 150000,
-    payment: "Credit Card",
-  },
-  {
-    id: "ORD-12338",
-    customer: "Le Thi H",
-    date: "2025-05-16",
-    time: "08:45",
-    status: "Completed",
-    items: 6,
-    total: 450000,
-    payment: "Cash",
-  },
-]
+import { supabase } from "@/lib/supabase/client"
+import { useAuth } from "@/contexts/AuthContext"
 
 export default function OrdersPage() {
+  const { profile, hasRole } = useAuth()
+  const [orders, setOrders] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [sortField, setSortField] = useState<string | null>(null)
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc")
   const [statusFilter, setStatusFilter] = useState("all")
+  const [currentPage, setCurrentPage] = useState(1)
+  const ordersPerPage = 10
+  const [exporting, setExporting] = useState(false)
+  const [showFilter, setShowFilter] = useState(false)
+  const [filterPayment, setFilterPayment] = useState('all')
+  const [filterDate, setFilterDate] = useState('')
+  const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null)
+
+  useEffect(() => {
+    async function fetchOrders() {
+      setLoading(true)
+      setError(null)
+      if (!profile?.current_branch_id) {
+        setOrders([])
+        setLoading(false)
+        return
+      }
+      // Fetch orders for current branch
+      const { data, error } = await supabase
+        .from('orders')
+        .select('id, order_number, status, total_amount, payment_method, created_at, branch_id, user:profiles(full_name), order_items(count)')
+        .eq('branch_id', profile.current_branch_id)
+        .order('created_at', { ascending: false })
+      if (error) {
+        setError("Failed to load orders")
+        setLoading(false)
+        return
+      }
+      // Map to table format
+      const mapped = (data || []).map((o: any) => {
+        let status = o.status
+        // Map 'delivered' to 'Completed' for display, keep others as is
+        if (status === 'delivered') status = 'Completed'
+        else status = status.charAt(0).toUpperCase() + status.slice(1)
+        return {
+          id: o.order_number || o.id,
+          customer: o.user?.full_name || "-",
+          date: o.created_at ? o.created_at.slice(0, 10) : "",
+          time: o.created_at ? o.created_at.slice(11, 16) : "",
+          status,
+          items: o.order_items?.count || 0,
+          total: o.total_amount,
+          payment: o.payment_method.charAt(0).toUpperCase() + o.payment_method.slice(1),
+        }
+      })
+      setOrders(mapped)
+      setLoading(false)
+    }
+    fetchOrders()
+  }, [profile?.current_branch_id])
 
   const handleSort = (field: string) => {
     if (sortField === field) {
@@ -128,6 +100,68 @@ export default function OrdersPage() {
     return 0
   })
 
+  // Advanced filter logic
+  const advancedFilteredOrders = sortedOrders.filter(order =>
+    (filterPayment === 'all' || order.payment.toLowerCase() === filterPayment) &&
+    (!filterDate || order.date === filterDate)
+  )
+  const totalPages = Math.ceil(advancedFilteredOrders.length / ordersPerPage)
+  const paginatedOrders = advancedFilteredOrders.slice((currentPage - 1) * ordersPerPage, currentPage * ordersPerPage)
+
+  // Export to CSV
+  const handleExport = () => {
+    setExporting(true)
+    const headers = ['Order ID', 'Customer', 'Date', 'Time', 'Status', 'Items', 'Total', 'Payment']
+    const rows = advancedFilteredOrders.map(order => [
+      order.id, order.customer, order.date, order.time, order.status, order.items, order.total, order.payment
+    ])
+    const csv = [headers, ...rows].map(r => r.join(",")).join("\n")
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'orders.csv'
+    a.click()
+    setTimeout(() => {
+      URL.revokeObjectURL(url)
+      setExporting(false)
+    }, 1000)
+  }
+
+  // Update order status
+  const handleStatusChange = async (orderId: string, newStatus: string) => {
+    setUpdatingOrderId(orderId)
+    // Map 'Completed' to 'delivered' for DB
+    let dbStatus = newStatus
+    if (newStatus === 'Completed') dbStatus = 'delivered'
+    const { error } = await supabase.from('orders').update({ status: dbStatus.toLowerCase() }).eq('order_number', orderId)
+    if (!error) {
+      // Refresh orders
+      const { data } = await supabase
+        .from('orders')
+        .select('id, order_number, status, total_amount, payment_method, created_at, user:profiles(full_name), order_items(count)')
+        .order('created_at', { ascending: false })
+      const mapped = (data || []).map((o: any) => {
+        let status = o.status
+        // Map 'delivered' to 'Completed' for display, keep others as is
+        if (status === 'delivered') status = 'Completed'
+        else status = status.charAt(0).toUpperCase() + status.slice(1)
+        return {
+          id: o.order_number || o.id,
+          customer: o.user?.full_name || "-",
+          date: o.created_at ? o.created_at.slice(0, 10) : "",
+          time: o.created_at ? o.created_at.slice(11, 16) : "",
+          status,
+          items: o.order_items?.count || 0,
+          total: o.total_amount,
+          payment: o.payment_method.charAt(0).toUpperCase() + o.payment_method.slice(1),
+        }
+      })
+      setOrders(mapped)
+    }
+    setUpdatingOrderId(null)
+  }
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case "Completed":
@@ -148,6 +182,10 @@ export default function OrdersPage() {
   const completedOrders = orders.filter(o => o.status === "Completed").length
   const pendingOrders = orders.filter(o => o.status === "Pending" || o.status === "Processing").length
 
+  if (!profile?.current_branch_id) {
+    return <div className="min-h-screen flex items-center justify-center text-gray-500">Please select a branch in settings.</div>
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="p-8">
@@ -166,9 +204,13 @@ export default function OrdersPage() {
             transition={{ delay: 0.1 }}
             className="mt-4 md:mt-0"
           >
-            <button className="px-4 py-2 border border-gray-200 text-gray-700 rounded-full hover:bg-gray-50 transition-colors flex items-center">
+            <button
+              className="px-4 py-2 border border-gray-200 text-gray-700 rounded-full hover:bg-gray-50 transition-colors flex items-center"
+              onClick={handleExport}
+              disabled={exporting}
+            >
               <Download size={16} className="mr-2" />
-              Export
+              {exporting ? 'Exporting...' : 'Export'}
             </button>
           </motion.div>
         </div>
@@ -241,17 +283,46 @@ export default function OrdersPage() {
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
-              <button className="px-4 py-2 border border-gray-200 text-gray-700 rounded-full hover:bg-gray-50 transition-colors flex items-center">
+              <button
+                className="px-4 py-2 border border-gray-200 text-gray-700 rounded-full hover:bg-gray-50 transition-colors flex items-center"
+                onClick={() => setShowFilter(v => !v)}
+                type="button"
+              >
                 <Filter size={16} className="mr-2" />
                 Filter
               </button>
             </div>
           </div>
 
+          {showFilter && (
+            <div className="px-6 pt-4">
+              <div className="inline-flex bg-gray-50 rounded-full p-1">
+                <select
+                  className="px-4 py-1.5 text-sm rounded-full capitalize transition-all"
+                  value={filterPayment}
+                  onChange={e => setFilterPayment(e.target.value)}
+                >
+                  <option value="all">All Payments</option>
+                  <option value="credit card">Credit Card</option>
+                  <option value="cash">Cash</option>
+                  <option value="e-wallet">E-wallet</option>
+                </select>
+              </div>
+              <div className="inline-flex bg-gray-50 rounded-full p-1 mt-2">
+                <input
+                  type="date"
+                  className="px-4 py-1.5 text-sm rounded-full capitalize transition-all"
+                  value={filterDate}
+                  onChange={e => setFilterDate(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
+
           {/* Status Filter Tabs */}
           <div className="px-6 pt-4">
             <div className="inline-flex bg-gray-50 rounded-full p-1">
-              {['all', 'completed', 'processing', 'pending', 'cancelled'].map((status) => (
+              {['all', 'Completed', 'Processing', 'Pending', 'Ready', 'Cancelled'].map((status) => (
                 <button
                   key={status}
                   onClick={() => setStatusFilter(status)}
@@ -309,7 +380,7 @@ export default function OrdersPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {sortedOrders.map((order) => (
+                  {paginatedOrders.map((order) => (
                     <tr key={order.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                       <td className="py-4 pr-6 font-medium text-gray-900">{order.id}</td>
                       <td className="py-4 pr-6 text-sm text-gray-900">{order.customer}</td>
@@ -320,9 +391,22 @@ export default function OrdersPage() {
                         </div>
                       </td>
                       <td className="py-4 pr-6">
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(order.status)}`}>
-                          {order.status}
-                        </span>
+                        {hasRole(['admin', 'staff', 'pharmacist']) ? (
+                          <select
+                            className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(order.status)}`}
+                            value={order.status}
+                            onChange={e => handleStatusChange(order.id, e.target.value)}
+                            disabled={updatingOrderId === order.id}
+                          >
+                            <option value="Pending">Pending</option>
+                            <option value="Processing">Processing</option>
+                            <option value="Ready">Ready</option>
+                            <option value="Completed">Completed</option>
+                            <option value="Cancelled">Cancelled</option>
+                          </select>
+                        ) : (
+                          <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(order.status)}`}>{order.status}</span>
+                        )}
                       </td>
                       <td className="py-4 pr-6 text-sm text-gray-900">{order.items}</td>
                       <td className="py-4 pr-6 text-sm text-gray-900">₫{order.total.toLocaleString()}</td>
@@ -342,17 +426,31 @@ export default function OrdersPage() {
           {/* Pagination */}
           <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between">
             <div className="text-sm text-gray-500">
-              Showing <span className="font-medium">{sortedOrders.length}</span> of{" "}
-              <span className="font-medium">{orders.length}</span> orders
+              Showing <span className="font-medium">{paginatedOrders.length}</span> of{" "}
+              <span className="font-medium">{sortedOrders.length}</span> orders
             </div>
             <div className="flex items-center space-x-2">
-              <button className="px-3 py-1 rounded-full border border-gray-200 text-gray-400 text-sm" disabled>
+              <button
+                className="px-3 py-1 rounded-full border border-gray-200 text-gray-400 text-sm"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              >
                 Previous
               </button>
-              <button className="px-3 py-1 rounded-full bg-gray-900 text-white text-sm">1</button>
-              <button className="px-3 py-1 rounded-full border border-gray-200 text-gray-700 hover:bg-gray-50 text-sm">2</button>
-              <button className="px-3 py-1 rounded-full border border-gray-200 text-gray-700 hover:bg-gray-50 text-sm">3</button>
-              <button className="px-3 py-1 rounded-full border border-gray-200 text-gray-700 hover:bg-gray-50 text-sm">
+              {Array.from({ length: totalPages }, (_, i) => (
+                <button
+                  key={i + 1}
+                  className={`px-3 py-1 rounded-full border border-gray-200 text-sm ${currentPage === i + 1 ? "bg-gray-900 text-white" : "text-gray-700 hover:bg-gray-50"}`}
+                  onClick={() => setCurrentPage(i + 1)}
+                >
+                  {i + 1}
+                </button>
+              ))}
+              <button
+                className="px-3 py-1 rounded-full border border-gray-200 text-gray-700 hover:bg-gray-50 text-sm"
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              >
                 Next
               </button>
             </div>

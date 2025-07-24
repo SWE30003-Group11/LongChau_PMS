@@ -37,6 +37,41 @@ const COLORS = {
   chart5: "#e5e5e5",
 }
 
+// Replace branchData and categoryData with real values from branches.csv and products.csv
+const BRANCHES = [
+  "Long Chau - Hai Ba Trung HQ",
+  "Long Chau - Nguyen Trai",
+  "Long Chau - Le Van Sy",
+  "Long Chau - Pham Ngu Lao",
+  "Long Chau - District 7",
+  "Long Chau - Cong Hoa",
+  "Long Chau - Bach Dang",
+  "Long Chau - 3 Thang 2",
+];
+const CATEGORIES = [
+  "Pain Relief",
+  "Antibiotics",
+  "Vitamins & Supplements",
+  "Digestive Health",
+  "Allergy & Respiratory",
+  "Medical Devices",
+  "Personal Protection",
+  "Diabetes Care",
+  "Cough & Cold",
+];
+const TOP_PRODUCTS = [
+  "Paracetamol 500mg",
+  "Amoxicillin 500mg",
+  "Vitamin C 1000mg",
+  "Ibuprofen 400mg",
+  "Aspirin 500mg",
+  "Loratadine 10mg",
+  "Metformin 500mg",
+  "Azithromycin 500mg",
+  "Probiotic Capsules",
+  "Throat Lozenges",
+];
+
 // Mock data based on time range
 const getMockData = (timeRange: string) => {
   if (timeRange === 'today') {
@@ -60,19 +95,16 @@ const getMockData = (timeRange: string) => {
         { name: "6PM", sales: 2100, orders: 18 },
         { name: "8PM", sales: 1600, orders: 15 },
       ],
-      categoryData: [
-        { name: "Prescription Drugs", value: 48, count: 32 },
-        { name: "OTC Medicine", value: 22, count: 15 },
-        { name: "Healthcare Products", value: 18, count: 12 },
-        { name: "Personal Care", value: 12, count: 9 },
-      ],
-      branchData: [
-        { branch: "District 1", revenue: 2800, customers: 85 },
-        { branch: "District 2", revenue: 2200, customers: 68 },
-        { branch: "District 3", revenue: 1500, customers: 42 },
-        { branch: "District 7", revenue: 1900, customers: 56 },
-        { branch: "Thu Duc", revenue: 800, customers: 24 },
-      ],
+      categoryData: CATEGORIES.slice(0, 4).map((name, i) => ({
+        name,
+        value: [48, 22, 18, 12][i],
+        count: 30 + i * 10,
+      })),
+      branchData: BRANCHES.map((branch, i) => ({
+        branch,
+        revenue: 2000 + i * 1000 + Math.floor(Math.random() * 1000),
+        customers: 50 + i * 20 + Math.floor(Math.random() * 20),
+      })),
     }
   } else if (timeRange === 'week') {
     return {
@@ -95,19 +127,16 @@ const getMockData = (timeRange: string) => {
         { name: "Sat", sales: 10500, orders: 98 },
         { name: "Sun", sales: 8400, orders: 78 },
       ],
-      categoryData: [
-        { name: "Prescription Drugs", value: 45, count: 218 },
-        { name: "OTC Medicine", value: 25, count: 122 },
-        { name: "Healthcare Products", value: 20, count: 97 },
-        { name: "Personal Care", value: 10, count: 50 },
-      ],
-      branchData: [
-        { branch: "District 1", revenue: 18500, customers: 520 },
-        { branch: "District 2", revenue: 14200, customers: 410 },
-        { branch: "District 3", revenue: 8600, customers: 285 },
-        { branch: "District 7", revenue: 12800, customers: 380 },
-        { branch: "Thu Duc", revenue: 7700, customers: 225 },
-      ],
+      categoryData: CATEGORIES.slice(0, 4).map((name, i) => ({
+        name,
+        value: [45, 25, 20, 10][i],
+        count: 218 + i * 10,
+      })),
+      branchData: BRANCHES.map((branch, i) => ({
+        branch,
+        revenue: 18500 + i * 1000 + Math.floor(Math.random() * 1000),
+        customers: 520 + i * 20 + Math.floor(Math.random() * 20),
+      })),
     }
   } else { // month
     return {
@@ -128,19 +157,16 @@ const getMockData = (timeRange: string) => {
         { name: "Week 4", sales: 55400, orders: 565 },
         { name: "Week 5", sales: 18000, orders: 166 },
       ],
-      categoryData: [
-        { name: "Prescription Drugs", value: 42, count: 906 },
-        { name: "OTC Medicine", value: 28, count: 604 },
-        { name: "Healthcare Products", value: 19, count: 410 },
-        { name: "Personal Care", value: 11, count: 236 },
-      ],
-      branchData: [
-        { branch: "District 1", revenue: 82000, customers: 2420 },
-        { branch: "District 2", revenue: 68000, customers: 1980 },
-        { branch: "District 3", revenue: 45000, customers: 1290 },
-        { branch: "District 7", revenue: 52000, customers: 1650 },
-        { branch: "Thu Duc", revenue: 35000, customers: 1080 },
-      ],
+      categoryData: CATEGORIES.slice(0, 4).map((name, i) => ({
+        name,
+        value: [42, 28, 19, 11][i],
+        count: 906 + i * 10,
+      })),
+      branchData: BRANCHES.map((branch, i) => ({
+        branch,
+        revenue: 82000 + i * 1000 + Math.floor(Math.random() * 1000),
+        customers: 2420 + i * 20 + Math.floor(Math.random() * 20),
+      })),
     }
   }
 }

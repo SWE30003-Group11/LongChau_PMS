@@ -66,8 +66,8 @@ export default function DiabetesCarePage() {
             <div className="order-1 md:order-2">
               <div className="aspect-w-4 aspect-h-5 rounded-lg overflow-hidden bg-gray-100">
                 <img
-                  src="/images/diabetes-management.jpg"
-                  alt="Diabetes management supplies"
+                  src="/journal/managing-chronic-conditions-diabetes.webp"
+                  alt="Diabetes care"
                   className="w-full h-full object-cover"
                 />
               </div>
@@ -295,7 +295,7 @@ export default function DiabetesCarePage() {
               <Link href="/journal/heart-health-blood-pressure-management" className="group">
                 <div className="aspect-w-16 aspect-h-9 rounded-lg overflow-hidden mb-4 bg-gray-100">
                   <img
-                    src="/images/heart-health.jpg"
+                    src="/journal/heart-health-blood-pressure-management.avif"
                     alt="Heart health"
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   />
@@ -308,7 +308,7 @@ export default function DiabetesCarePage() {
               <Link href="/journal/essential-vitamins-supplements-guide" className="group">
                 <div className="aspect-w-16 aspect-h-9 rounded-lg overflow-hidden mb-4 bg-gray-100">
                   <img
-                    src="/images/vitamins-guide.jpg"
+                    src="/journal/essential-vitamins-supplements-guide.webp"
                     alt="Vitamins guide"
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   />
@@ -318,11 +318,11 @@ export default function DiabetesCarePage() {
                 </h4>
                 <p className="text-sm text-gray-500 mt-2">28 February 2025</p>
               </Link>
-              <Link href="/journal/understanding-your-medications-guide" className="group">
+              <Link href="/journal/antibiotic-resistance-awareness" className="group">
                 <div className="aspect-w-16 aspect-h-9 rounded-lg overflow-hidden mb-4 bg-gray-100">
                   <img
-                    src="/images/medication-guide-hero.jpg"
-                    alt="Understanding medications"
+                    src="/journal/antibiotic-resistance-awareness.jpg"
+                    alt="Antibiotic resistance"
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   />
                 </div>

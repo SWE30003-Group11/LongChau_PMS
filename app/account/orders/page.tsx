@@ -12,6 +12,15 @@ import { format } from "date-fns"
 import { Package, Clock, CheckCircle, XCircle, Truck, ChevronRight, ArrowLeft } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog"
 
 interface Order {
   id: string
@@ -25,6 +34,7 @@ interface Order {
   notes?: string
   created_at: string
   order_items: OrderItem[]
+  updated_at?: string
 }
 
 interface OrderItem {
@@ -50,6 +60,7 @@ export default function AccountOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'delivered'>('all')
+  const [detailsOrder, setDetailsOrder] = useState<Order | null>(null)
 
   useEffect(() => {
     if (user) {
@@ -88,6 +99,9 @@ export default function AccountOrdersPage() {
     const Icon = statusConfig[status].icon
     return <Icon className="h-4 w-4" />
   }
+
+  // Defensive: ensure order_items is always an array
+  const safeOrderItems = (order: Order | null) => Array.isArray(order?.order_items) ? order!.order_items : []
 
   if (loading) {
     return (
@@ -169,7 +183,7 @@ export default function AccountOrdersPage() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => router.push(`/account/orders/${order.id}`)}
+                            onClick={() => setDetailsOrder(order)}
                           >
                             View Details
                             <ChevronRight className="h-4 w-4 ml-1" />
@@ -252,6 +266,107 @@ export default function AccountOrdersPage() {
             </TabsContent>
           </Tabs>
         </div>
+
+        {/* Order Details Dialog */}
+        <Dialog open={!!detailsOrder} onOpenChange={open => { if (!open) setDetailsOrder(null) }}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Order Details</DialogTitle>
+              <DialogDescription>
+                {detailsOrder && (
+                  <>
+                    <div className="mb-2">
+                      <span className="font-semibold">Order #{detailsOrder.order_number}</span>
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      Placed: {format(new Date(detailsOrder.created_at), 'MMM d, yyyy h:mm a')}
+                      {detailsOrder.updated_at && (
+                        <> | Updated: {format(new Date(detailsOrder.updated_at), 'MMM d, yyyy h:mm a')}</>
+                      )}
+                    </div>
+                  </>
+                )}
+              </DialogDescription>
+            </DialogHeader>
+            {detailsOrder && (
+              <div className="space-y-6">
+                <div className="flex flex-wrap gap-6">
+                  <div>
+                    <p className="text-sm text-gray-500">Status</p>
+                    <Badge className={statusConfig[detailsOrder.status].color}>
+                      {getStatusIcon(detailsOrder.status)}
+                      <span className="ml-1">{statusConfig[detailsOrder.status].label}</span>
+                    </Badge>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Payment</p>
+                    <span className="font-medium capitalize">
+                      {detailsOrder.payment_method.replace('_', ' ')}
+                      {detailsOrder.payment_status === 'paid' && (
+                        <span className="text-green-600 text-sm ml-2">✓ Paid</span>
+                      )}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Fulfillment</p>
+                    <span className="font-medium capitalize flex items-center">
+                      {detailsOrder.fulfillment_method === 'delivery' && <Truck className="h-4 w-4 mr-1" />}
+                      {detailsOrder.fulfillment_method}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Total Amount</p>
+                    <span className="font-medium text-lg">
+                      {detailsOrder.total_amount.toLocaleString('vi-VN')}₫
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500 mb-2">Order Items</p>
+                  <div className="divide-y">
+                    {safeOrderItems(detailsOrder).length === 0 && (
+                      <div className="text-gray-400 text-sm py-2">No items found for this order.</div>
+                    )}
+                    {safeOrderItems(detailsOrder).map(item => (
+                      <div key={item.id} className="flex justify-between py-2 text-sm">
+                        <span className="text-gray-700">
+                          {item.product_name} x{item.quantity}
+                          {item.prescription_required && (
+                            <Badge variant="outline" className="ml-2 text-xs">Rx Required</Badge>
+                          )}
+                        </span>
+                        <span className="text-gray-900">
+                          {(item.unit_price * item.quantity).toLocaleString('vi-VN')}₫
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {detailsOrder.delivery_address && (
+                  <div>
+                    <p className="text-sm text-gray-500">Delivery Address</p>
+                    <p className="text-sm text-gray-700 mt-1">{detailsOrder.delivery_address}</p>
+                  </div>
+                )}
+                {detailsOrder.notes && (
+                  <div>
+                    <p className="text-sm text-gray-500">Order Notes</p>
+                    <p className="text-sm text-gray-700 mt-1">{detailsOrder.notes}</p>
+                  </div>
+                )}
+                <div className="text-xs text-gray-400 pt-2">
+                  <div>Order ID: {detailsOrder.id}</div>
+                  {detailsOrder.updated_at && <div>Last updated: {format(new Date(detailsOrder.updated_at), 'MMM d, yyyy h:mm a')}</div>}
+                </div>
+              </div>
+            )}
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button variant="outline">Close</Button>
+              </DialogClose>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </ProtectedRoute>
   )

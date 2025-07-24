@@ -22,6 +22,7 @@ export interface UserProfile {
   allergies?: string
   created_at: string
   updated_at: string
+  current_branch_id?: number // Add this line
 }
 
 // Auth helper functions
@@ -57,7 +58,7 @@ export const getUserProfile = async (userId: string): Promise<UserProfile | null
       return null
     }
     
-    return data
+    return data // will include current_branch_id
   } catch (error) {
     // Silently handle errors
     return null
@@ -81,6 +82,22 @@ export const updateUserProfile = async (userId: string, updates: Partial<UserPro
     return data
   } catch (error) {
     console.error('Error in updateUserProfile:', error)
+    return null
+  }
+}
+
+export const updateUserBranch = async (userId: string, branchId: number) => {
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({ current_branch_id: branchId })
+      .eq('id', userId)
+      .select()
+      .single()
+    if (error) throw error
+    return data
+  } catch (error) {
+    console.error('Error updating user branch:', error)
     return null
   }
 }

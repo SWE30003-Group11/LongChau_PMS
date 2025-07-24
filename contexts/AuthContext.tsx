@@ -3,7 +3,7 @@
 
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { User } from '@supabase/supabase-js'
-import { supabase, UserProfile, getUserProfile, UserRole } from '@/lib/supabase/client'
+import { supabase, UserProfile, getUserProfile, UserRole, updateUserBranch } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 
 interface AuthContextType {
@@ -15,6 +15,7 @@ interface AuthContextType {
   signOut: () => Promise<void>
   hasRole: (roles: UserRole[]) => boolean
   refreshProfile: () => Promise<void>
+  setCurrentBranch: (branchId: number) => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -32,6 +33,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setProfile(userProfile)
     }
   }, [user])
+
+  const setCurrentBranch = useCallback(async (branchId: number) => {
+    if (user) {
+      await updateUserBranch(user.id, branchId)
+      await refreshProfile()
+    }
+  }, [user, refreshProfile])
 
   useEffect(() => {
     let mounted = true
@@ -206,6 +214,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signOut,
     hasRole,
     refreshProfile,
+    setCurrentBranch,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

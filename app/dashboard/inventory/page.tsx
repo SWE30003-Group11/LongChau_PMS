@@ -1,92 +1,323 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Search, Filter, Plus, Edit, Trash2, ArrowUpDown, Package, AlertTriangle } from "lucide-react"
 import { motion } from "framer-motion"
+import { supabase } from "@/lib/supabase/client"
+import {
+  Dialog,
+  DialogTrigger,
+  DialogContent,
+  DialogHeader,
+  DialogFooter,
+  DialogTitle,
+  DialogDescription,
+  DialogClose,
+} from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogTrigger,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogFooter,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from "@/components/ui/alert-dialog"
+import { useAuth } from "@/contexts/AuthContext"
 
-// Mock inventory data
-const inventoryItems = [
-  {
-    id: 1,
-    name: "Paracetamol 500mg",
-    category: "Pain Relief",
-    stock: 250,
-    price: 15000,
-    supplier: "Pharma Co.",
-    expiry: "2025-12-31",
-  },
-  {
-    id: 2,
-    name: "Amoxicillin 250mg",
-    category: "Antibiotics",
-    stock: 120,
-    price: 45000,
-    supplier: "MediPharm",
-    expiry: "2025-10-15",
-  },
-  {
-    id: 3,
-    name: "Vitamin C 1000mg",
-    category: "Vitamins",
-    stock: 300,
-    price: 25000,
-    supplier: "HealthPlus",
-    expiry: "2026-05-20",
-  },
-  {
-    id: 4,
-    name: "Ibuprofen 200mg",
-    category: "Pain Relief",
-    stock: 180,
-    price: 18000,
-    supplier: "Pharma Co.",
-    expiry: "2025-11-30",
-  },
-  {
-    id: 5,
-    name: "Cetirizine 10mg",
-    category: "Allergy",
-    stock: 90,
-    price: 22000,
-    supplier: "MediPharm",
-    expiry: "2025-09-15",
-  },
-  {
-    id: 6,
-    name: "Omeprazole 20mg",
-    category: "Digestive",
-    stock: 15,
-    price: 35000,
-    supplier: "HealthPlus",
-    expiry: "2025-08-25",
-  },
-  {
-    id: 7,
-    name: "Metformin 500mg",
-    category: "Diabetes",
-    stock: 8,
-    price: 42000,
-    supplier: "Pharma Co.",
-    expiry: "2025-07-10",
-  },
-  {
-    id: 8,
-    name: "Atorvastatin 10mg",
-    category: "Cholesterol",
-    stock: 45,
-    price: 55000,
-    supplier: "MediPharm",
-    expiry: "2025-06-20",
-  },
-]
+// Helper to get product image URL by id
+function getProductImageUrl(productId: string, ext = 'png') {
+  return `${process.env.NEXT_PUBLIC_SUPABASE_URL || ''}/storage/v1/object/public/product-images/product-${productId}.${ext}`;
+}
+
+function getProductImageUrlFromKey(key: string) {
+  return `${process.env.NEXT_PUBLIC_SUPABASE_URL || ''}/storage/v1/object/public/product-images/${key}`;
+}
 
 export default function InventoryPage() {
+  const { profile } = useAuth()
+  const [products, setProducts] = useState<any[]>([])
+  const [suppliers, setSuppliers] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [sortField, setSortField] = useState<string | null>(null)
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc")
   const [activeCategory, setActiveCategory] = useState("all")
+  const [showAddEdit, setShowAddEdit] = useState(false)
+  const [editProduct, setEditProduct] = useState<any | null>(null)
+  const [showDelete, setShowDelete] = useState(false)
+  const [deleteProduct, setDeleteProduct] = useState<any | null>(null)
+  const [form, setForm] = useState<any>({})
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [showFilter, setShowFilter] = useState(false)
+  const [filterCategory, setFilterCategory] = useState<string>("all")
+  const [filterSupplier, setFilterSupplier] = useState<string>("all")
+  const [currentPage, setCurrentPage] = useState(1)
+  const productsPerPage = 10
+  const imageFileRef = useRef<HTMLInputElement | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [uploadedImageKey, setUploadedImageKey] = useState("");
+  const [imageUploadStatus, setImageUploadStatus] = useState("");
+  const [imageUploadError, setImageUploadError] = useState("");
 
-  const handleSort = (field: string) => {
+  useEffect(() => {
+    fetchData()
+  }, [])
+
+  useEffect(() => {
+    if (imageFileRef.current && imageFileRef.current.files && imageFileRef.current.files[0]) {
+      const file = imageFileRef.current.files[0]
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        setImagePreview(e.target?.result as string)
+      }
+      reader.readAsDataURL(file)
+    } else {
+      setImagePreview(form.image || null)
+    }
+    // eslint-disable-next-line
+  }, [form.image, showAddEdit])
+
+  async function fetchData() {
+    setLoading(true)
+    setError(null)
+    if (!profile?.current_branch_id) {
+      setProducts([])
+      setSuppliers([])
+      setLoading(false)
+      return
+    }
+    // Fetch products with supplier and inventory info for current branch
+    const { data: productsData, error: prodErr } = await supabase
+      .from("products")
+      .select("*, supplier:suppliers(*), inventory:inventory(*)")
+    const { data: suppliersData, error: supErr } = await supabase
+      .from("suppliers").select("*")
+    if (prodErr || supErr) {
+      setError("Failed to load data")
+      setLoading(false)
+      return
+    }
+    // Only keep inventory for current branch
+    const branchId = profile.current_branch_id
+    const productsWithBranchInventory = (productsData || []).map((p: any) => ({
+      ...p,
+      inventory: (p.inventory || []).filter((inv: any) => inv.branch_id === branchId)
+    }))
+    setProducts(productsWithBranchInventory)
+    setSuppliers(suppliersData || [])
+    setLoading(false)
+  }
+
+  // Add/Edit Product
+  function openAddProduct() {
+    setEditProduct(null)
+    setForm({
+      name: "Glucosamine 1500mg",
+      generic_name: "Glucosamine Sulfate",
+      category: "Joint Health",
+      price: 180000,
+      original_price: 220000,
+      prescription_required: false,
+      in_stock: true,
+      manufacturer: "Nature's Way",
+      pack_size: "Box of 60 tablets",
+      strength: "1500mg",
+      description: "Glucosamine supports joint health and mobility, helping to relieve symptoms of mild osteoarthritis.",
+      mechanism_of_action: "Supports cartilage formation and joint lubrication.",
+      indications: "Joint pain, mild osteoarthritis, cartilage support",
+      warranty: "2 years",
+      storage: "Store in a cool, dry place.",
+      pregnancy_category: "C",
+      lactation: "Consult a doctor",
+      supplier_id: 1
+    })
+    setShowAddEdit(true)
+    setImagePreview(null)
+    if (imageFileRef.current) imageFileRef.current.value = ""
+  }
+  function openEditProduct(product: any) {
+    setEditProduct(product)
+    setForm({ ...product, supplier_id: product.supplier_id || product.supplier?.id })
+    setShowAddEdit(true)
+    setImagePreview(null)
+    if (imageFileRef.current) imageFileRef.current.value = ""
+  }
+  function closeAddEdit() {
+    setShowAddEdit(false)
+    setEditProduct(null)
+    setForm({})
+  }
+  async function handleImageUpload() {
+    setImageUploadStatus("");
+    setImageUploadError("");
+    if (imageFileRef.current && imageFileRef.current.files && imageFileRef.current.files[0]) {
+      const file = imageFileRef.current.files[0];
+      if (!file.type.startsWith('image/')) {
+        setImageUploadError('Please upload a valid image file (PNG, JPG, JPEG).');
+        return;
+      }
+      if (file.size === 0) {
+        setImageUploadError('The selected file is empty.');
+        return;
+      }
+      if (file.size > 2 * 1024 * 1024) {
+        setImageUploadError('Image must be less than 2MB.');
+        return;
+      }
+      // Use a unique key (timestamp + original name)
+      const ext = file.name.split('.').pop();
+      const key = `temp-${Date.now()}.${ext}`;
+      setImageUploadStatus('Uploading...');
+      const { data: uploadData, error: uploadError } = await supabase.storage.from('product-images').upload(key, file, { upsert: true });
+      if (uploadError) {
+        setImageUploadError('Image upload failed.');
+        setImageUploadStatus("");
+        return;
+      }
+      setUploadedImageKey(key);
+      setImageUploadStatus('Uploaded successfully!');
+    }
+  }
+  async function handleSaveProduct() {
+    setSaving(true);
+    setError(null);
+    if (!imageFileRef.current || !imageFileRef.current.files || !imageFileRef.current.files[0]) {
+      setError('Please select an image before submitting the product.');
+      setSaving(false);
+      return;
+    }
+    try {
+      // Only send allowed fields to the products table
+      const allowedFields = [
+        'name', 'generic_name', 'price', 'original_price', 'category', 'prescription_required', 'in_stock', 'manufacturer', 'pack_size', 'strength', 'description', 'mechanism_of_action', 'indications', 'warranty', 'storage', 'pregnancy_category', 'lactation', 'supplier_id'
+      ];
+      const productData: { [key: string]: any } = {};
+      allowedFields.forEach(field => {
+        if (form[field] !== undefined) productData[field] = form[field];
+      });
+      if (!productData.name) {
+        setError('Product name is required.');
+        setSaving(false);
+        return;
+      }
+      // Insert product first
+      const { data, error: insertError } = await supabase.from('products').insert([productData]).select('id, name').single();
+      if (insertError) {
+        setError('Product insert failed: ' + insertError.message);
+        setSaving(false);
+        return;
+      }
+      // Now upload the image using the product name as filename (exact match, including spaces and case)
+      const file = imageFileRef.current.files[0];
+      if (!file.type.startsWith('image/png')) {
+        setError('Please upload a PNG image for consistency.');
+        console.error('Image upload failed: not a PNG file', file);
+        setSaving(false);
+        return;
+      }
+      const fileName = `${data.name}.png`;
+      console.log('Uploading image:', { productName: data.name, file, fileName });
+      const { data: uploadData, error: uploadError } = await supabase.storage.from('product-images').upload(fileName, file, { upsert: true });
+      console.log('Upload response:', { uploadData, uploadError });
+      if (uploadError) {
+        setError('Image upload failed: ' + uploadError.message);
+        console.error('Image upload error:', uploadError);
+        setSaving(false);
+        return;
+      }
+      setShowAddEdit(false);
+      setImagePreview(null);
+      if (imageFileRef.current) imageFileRef.current.value = "";
+      fetchData();
+    } catch (err: any) {
+      setError('Unexpected error: ' + err.message);
+    }
+    setSaving(false);
+  }
+  // Delete Product
+  function openDeleteProduct(product: any) {
+    setDeleteProduct(product)
+    setShowDelete(true)
+  }
+  function closeDelete() {
+    setShowDelete(false)
+    setDeleteProduct(null)
+  }
+  async function handleDeleteProduct() {
+    if (!deleteProduct) return
+    setSaving(true)
+    setError(null)
+    try {
+      const { error } = await supabase.from("products").delete().eq("id", deleteProduct.id)
+      if (error) throw error
+      closeDelete()
+      fetchData()
+    } catch (e: any) {
+      setError(e.message || "Failed to delete product")
+    } finally {
+      setSaving(false)
+    }
+  }
+  // Update Stock
+  async function handleUpdateStock(product: any, newQty: number) {
+    setSaving(true)
+    setError(null)
+    try {
+      const branchId = profile?.current_branch_id
+      if (!branchId) throw new Error('No branch selected')
+      const inv = (product.inventory || []).find((inv: any) => inv.branch_id === branchId)
+      if (inv) {
+        const { error } = await supabase.from("inventory").update({ quantity: newQty }).eq("id", inv.id)
+        if (error) throw error
+      } else {
+        // Insert new inventory record for this branch
+        const { error } = await supabase.from("inventory").insert({ product_id: product.id, branch_id: branchId, quantity: newQty })
+        if (error) throw error
+      }
+      fetchData()
+    } catch (e: any) {
+      setError(e.message || "Failed to update stock")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // Filtering, sorting, and UI logic
+  const categories = ["all", ...Array.from(new Set(products.map(p => (p.category || "").toLowerCase())))]
+  const supplierOptions = ["all", ...Array.from(new Set(products.map(p => p.supplier?.name).filter(Boolean)))]
+
+  const filteredItems = products.filter(
+    (item) =>
+      (activeCategory === "all" || (item.category || "").toLowerCase() === activeCategory) &&
+      (filterCategory === "all" || (item.category || "").toLowerCase() === filterCategory) &&
+      (filterSupplier === "all" || (item.supplier?.name || "") === filterSupplier) &&
+      (item.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (item.category || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (item.supplier?.name || "").toLowerCase().includes(searchTerm.toLowerCase())),
+  )
+  const sortedItems = [...filteredItems].sort((a, b) => {
+    if (!sortField) return 0
+    const fieldA = a[sortField]
+    const fieldB = b[sortField]
+    if (typeof fieldA === "string" && typeof fieldB === "string") {
+      return sortDirection === "asc" ? fieldA.localeCompare(fieldB) : fieldB.localeCompare(fieldA)
+    }
+    if (typeof fieldA === "number" && typeof fieldB === "number") {
+      return sortDirection === "asc" ? fieldA - fieldB : fieldB - fieldA
+    }
+    return 0
+  })
+
+  // Pagination logic
+  const totalPages = Math.ceil(sortedItems.length / productsPerPage)
+  const paginatedItems = sortedItems.slice((currentPage - 1) * productsPerPage, currentPage * productsPerPage)
+
+  // Add this function for sorting
+  function handleSort(field: string) {
     if (sortField === field) {
       setSortDirection(sortDirection === "asc" ? "desc" : "asc")
     } else {
@@ -95,49 +326,28 @@ export default function InventoryPage() {
     }
   }
 
-  // Get unique categories for the filter tabs
-  const categories = ["all", ...new Set(inventoryItems.map(item => item.category.toLowerCase()))]
+  // Calculate stats using inventory quantity
+  const totalItems = products.length
+  const lowStockItems = products.filter(item => (item.inventory?.[0]?.quantity ?? 0) <= 20).length
+  const expiringItems = products.filter(item => {
+    const expiryDate = item.inventory?.[0]?.expiry_date ? new Date(item.inventory[0].expiry_date) : null
+    if (!expiryDate) return false
+    const threeMonthsFromNow = new Date()
+    threeMonthsFromNow.setMonth(threeMonthsFromNow.getMonth() + 3)
+    return expiryDate <= threeMonthsFromNow
+  }).length
 
-  const filteredItems = inventoryItems.filter(
-    (item) =>
-      (activeCategory === "all" || item.category.toLowerCase() === activeCategory) &&
-      (item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.supplier.toLowerCase().includes(searchTerm.toLowerCase())),
-  )
-
-  const sortedItems = [...filteredItems].sort((a, b) => {
-    if (!sortField) return 0
-
-    const fieldA = a[sortField as keyof typeof a]
-    const fieldB = b[sortField as keyof typeof b]
-
-    if (typeof fieldA === "string" && typeof fieldB === "string") {
-      return sortDirection === "asc" ? fieldA.localeCompare(fieldB) : fieldB.localeCompare(fieldA)
-    }
-
-    if (typeof fieldA === "number" && typeof fieldB === "number") {
-      return sortDirection === "asc" ? fieldA - fieldB : fieldB - fieldA
-    }
-
-    return 0
-  })
-
-  const getStockStatus = (stock: number) => {
+  function getStockStatus(stock: number) {
     if (stock > 100) return { color: "bg-green-50 text-green-700 border-green-200", label: "In Stock" }
     if (stock > 20) return { color: "bg-yellow-50 text-yellow-700 border-yellow-200", label: "Low Stock" }
     return { color: "bg-red-50 text-red-700 border-red-200", label: "Critical" }
   }
 
-  // Calculate stats
-  const totalItems = inventoryItems.length
-  const lowStockItems = inventoryItems.filter(item => item.stock <= 20).length
-  const expiringItems = inventoryItems.filter(item => {
-    const expiryDate = new Date(item.expiry)
-    const threeMonthsFromNow = new Date()
-    threeMonthsFromNow.setMonth(threeMonthsFromNow.getMonth() + 3)
-    return expiryDate <= threeMonthsFromNow
-  }).length
+  if (loading) return <div className="min-h-screen flex items-center justify-center text-gray-500">Loading...</div>
+  if (error) return <div className="min-h-screen flex items-center justify-center text-red-500">{error}</div>
+  if (!profile?.current_branch_id) {
+    return <div className="min-h-screen flex items-center justify-center text-gray-500">Please select a branch in settings.</div>
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -157,7 +367,7 @@ export default function InventoryPage() {
             transition={{ delay: 0.1 }}
             className="mt-4 md:mt-0"
           >
-            <button className="px-4 py-2 bg-gray-900 text-white rounded-full hover:bg-gray-800 transition-colors flex items-center">
+            <button className="px-4 py-2 bg-gray-900 text-white rounded-full hover:bg-gray-800 transition-colors flex items-center" onClick={openAddProduct}>
               <Plus size={16} className="mr-2" />
               Add Product
             </button>
@@ -228,14 +438,46 @@ export default function InventoryPage() {
                   type="text"
                   className="w-full pl-10 pr-4 py-2 rounded-full border border-gray-200 focus:outline-none focus:border-gray-400"
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
                 />
               </div>
-              <button className="px-4 py-2 border border-gray-200 text-gray-700 rounded-full hover:bg-gray-50 transition-colors flex items-center">
+              <button
+                className="px-4 py-2 border border-gray-200 text-gray-700 rounded-full hover:bg-gray-50 transition-colors flex items-center"
+                onClick={() => setShowFilter((v) => !v)}
+                type="button"
+              >
                 <Filter size={16} className="mr-2" />
                 Filter
               </button>
             </div>
+            {showFilter && (
+              <div className="mt-4 flex flex-col md:flex-row gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Category</label>
+                  <select
+                    className="rounded-full border border-gray-200 px-4 py-2 focus:outline-none focus:border-gray-400"
+                    value={filterCategory}
+                    onChange={e => { setFilterCategory(e.target.value); setCurrentPage(1); }}
+                  >
+                    {categories.map((cat) => (
+                      <option key={cat} value={cat}>{cat === "all" ? "All Categories" : cat}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Supplier</label>
+                  <select
+                    className="rounded-full border border-gray-200 px-4 py-2 focus:outline-none focus:border-gray-400"
+                    value={filterSupplier}
+                    onChange={e => { setFilterSupplier(e.target.value); setCurrentPage(1); }}
+                  >
+                    {supplierOptions.map((sup) => (
+                      <option key={sup} value={sup}>{sup === "all" ? "All Suppliers" : sup}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Category Tabs */}
@@ -303,26 +545,35 @@ export default function InventoryPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {sortedItems.map((item) => {
-                    const stockStatus = getStockStatus(item.stock)
+                  {paginatedItems.map((item) => {
+                    const stock = item.inventory?.[0]?.quantity ?? 0
+                    const expiry = item.inventory?.[0]?.expiry_date ?? "-"
+                    const stockStatus = getStockStatus(stock)
                     return (
                       <tr key={item.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                         <td className="py-4 pr-6 font-medium text-gray-900">{item.name}</td>
                         <td className="py-4 pr-6 text-sm text-gray-600">{item.category}</td>
                         <td className="py-4 pr-6">
-                          <span className={`px-3 py-1 rounded-full text-xs font-medium border ${stockStatus.color}`}>
-                            {item.stock} units
-                          </span>
+                          <span className={`px-3 py-1 rounded-full text-xs font-medium border ${stockStatus.color}`}>{stock} units</span>
+                          {/* Inline stock update for staff */}
+                          <input
+                            type="number"
+                            min={0}
+                            className="ml-2 w-20 border rounded px-2 py-1 text-xs"
+                            value={stock}
+                            onChange={e => handleUpdateStock(item, Number(e.target.value))}
+                            disabled={saving}
+                          />
                         </td>
-                        <td className="py-4 pr-6 text-sm text-gray-900">₫{item.price.toLocaleString()}</td>
-                        <td className="py-4 pr-6 text-sm text-gray-600">{item.supplier}</td>
-                        <td className="py-4 pr-6 text-sm text-gray-900">{item.expiry}</td>
+                        <td className="py-4 pr-6 text-sm text-gray-900">₫{item.price?.toLocaleString()}</td>
+                        <td className="py-4 pr-6 text-sm text-gray-600">{item.supplier?.name}</td>
+                        <td className="py-4 pr-6 text-sm text-gray-900">{expiry}</td>
                         <td className="py-4">
                           <div className="flex items-center space-x-2">
-                            <button className="p-1 text-gray-600 hover:text-gray-900 transition-colors">
+                            <button className="p-1 text-gray-600 hover:text-gray-900 transition-colors" onClick={() => openEditProduct(item)}>
                               <Edit size={16} />
                             </button>
-                            <button className="p-1 text-red-600 hover:text-red-700 transition-colors">
+                            <button className="p-1 text-red-600 hover:text-red-700 transition-colors" onClick={() => openDeleteProduct(item)}>
                               <Trash2 size={16} />
                             </button>
                           </div>
@@ -338,23 +589,201 @@ export default function InventoryPage() {
           {/* Pagination */}
           <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between">
             <div className="text-sm text-gray-500">
-              Showing <span className="font-medium">{sortedItems.length}</span> of{" "}
-              <span className="font-medium">{inventoryItems.length}</span> products
+              Showing <span className="font-medium">{paginatedItems.length}</span> of <span className="font-medium">{sortedItems.length}</span> products
             </div>
             <div className="flex items-center space-x-2">
-              <button className="px-3 py-1 rounded-full border border-gray-200 text-gray-400 text-sm" disabled>
+              <button
+                className="px-3 py-1 rounded-full border border-gray-200 text-gray-400 text-sm"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              >
                 Previous
               </button>
-              <button className="px-3 py-1 rounded-full bg-gray-900 text-white text-sm">1</button>
-              <button className="px-3 py-1 rounded-full border border-gray-200 text-gray-700 hover:bg-gray-50 text-sm">2</button>
-              <button className="px-3 py-1 rounded-full border border-gray-200 text-gray-700 hover:bg-gray-50 text-sm">3</button>
-              <button className="px-3 py-1 rounded-full border border-gray-200 text-gray-700 hover:bg-gray-50 text-sm">
+              {Array.from({ length: totalPages }, (_, i) => (
+                <button
+                  key={i + 1}
+                  className={`px-3 py-1 rounded-full border border-gray-200 text-sm ${currentPage === i + 1 ? "bg-gray-900 text-white" : "text-gray-700 hover:bg-gray-50"}`}
+                  onClick={() => setCurrentPage(i + 1)}
+                >
+                  {i + 1}
+                </button>
+              ))}
+              <button
+                className="px-3 py-1 rounded-full border border-gray-200 text-gray-700 hover:bg-gray-50 text-sm"
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              >
                 Next
               </button>
             </div>
           </div>
         </motion.div>
       </div>
+
+      {/* Add/Edit Product Modal */}
+      <Dialog open={showAddEdit} onOpenChange={setShowAddEdit}>
+        <DialogContent className="max-w-2xl w-full p-0 bg-white rounded-3xl shadow-2xl border border-gray-100 overflow-y-auto hide-scrollbar" style={{ maxHeight: '90vh' }}>
+          <DialogTitle className="text-2xl font-light tracking-wide text-gray-900 text-center pt-8 pb-2">
+            {editProduct ? "Edit Product" : "Add Product"}
+          </DialogTitle>
+          <DialogDescription className="text-center text-gray-500 mb-4">Upload a product image, then fill in the product details below.</DialogDescription>
+          {/* Image Upload Section */}
+          <div className="flex flex-col items-center justify-center py-6 border-b border-gray-100">
+            <input
+              type="file"
+              accept="image/png"
+              ref={imageFileRef}
+              className="mb-4"
+              onChange={() => {
+                if (imageFileRef.current && imageFileRef.current.files && imageFileRef.current.files[0]) {
+                  const file = imageFileRef.current.files[0]
+                  const reader = new FileReader()
+                  reader.onload = (e) => {
+                    setImagePreview(e.target?.result as string)
+                  }
+                  reader.readAsDataURL(file)
+                } else {
+                  setImagePreview(null)
+                }
+              }}
+            />
+            {imagePreview && (
+              <img src={imagePreview} alt="Preview" className="mt-4 w-48 h-48 object-cover rounded-lg border" />
+            )}
+          </div>
+          {/* Product Form Section */}
+          <form
+            onSubmit={e => {
+              e.preventDefault();
+              handleSaveProduct();
+            }}
+            className="flex flex-col px-8 pt-8 pb-4"
+          >
+            {/* Product Info Section */}
+            <div className="col-span-2 mb-2">
+              <h3 className="text-lg font-semibold text-gray-800 mb-2 tracking-wide border-b border-gray-100 pb-2">Basic Information</h3>
+            </div>
+            <div className="col-span-1">
+              <label className="block text-sm mb-1 font-medium text-gray-700">Name</label>
+              <input className="w-full border rounded-xl px-4 py-2 bg-white/80 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all shadow-sm" value={form.name || ""} onChange={e => setForm((f: any) => ({ ...f, name: e.target.value }))} required />
+            </div>
+            <div className="col-span-1">
+              <label className="block text-sm mb-1 font-medium text-gray-700">Generic Name</label>
+              <input className="w-full border rounded-xl px-4 py-2 bg-white/80 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all shadow-sm" value={form.generic_name || ""} onChange={e => setForm((f: any) => ({ ...f, generic_name: e.target.value }))} />
+            </div>
+            <div className="col-span-1">
+              <label className="block text-sm mb-1 font-medium text-gray-700">Category</label>
+              <input className="w-full border rounded-xl px-4 py-2 bg-white/80 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all shadow-sm" value={form.category || ""} onChange={e => setForm((f: any) => ({ ...f, category: e.target.value }))} required />
+            </div>
+            <div className="col-span-1">
+              <label className="block text-sm mb-1 font-medium text-gray-700">Supplier</label>
+              <select
+                className="w-full border rounded-xl px-4 py-2 bg-white/80 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all shadow-sm"
+                value={form.supplier_id || ""}
+                onChange={e => setForm((f: any) => ({ ...f, supplier_id: e.target.value ? Number(e.target.value) : null }))}
+                required
+              >
+                <option value="">Select supplier</option>
+                {suppliers.map((sup: any) => (
+                  <option key={sup.id} value={sup.id}>{sup.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="col-span-1">
+              <label className="block text-sm mb-1 font-medium text-gray-700">Price</label>
+              <input type="number" step="0.01" className="w-full border rounded-xl px-4 py-2 bg-white/80 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all shadow-sm" value={form.price || ""} onChange={e => setForm((f: any) => ({ ...f, price: parseFloat(e.target.value) }))} required />
+            </div>
+            <div className="col-span-1">
+              <label className="block text-sm mb-1 font-medium text-gray-700">Original Price</label>
+              <input type="number" step="0.01" className="w-full border rounded-xl px-4 py-2 bg-white/80 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all shadow-sm" value={form.original_price || ""} onChange={e => setForm((f: any) => ({ ...f, original_price: parseFloat(e.target.value) }))} />
+            </div>
+            <div className="col-span-1">
+              <label className="block text-sm mb-1 font-medium text-gray-700">Prescription Required</label>
+              <select className="w-full border rounded-xl px-4 py-2 bg-white/80 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all shadow-sm" value={form.prescription_required ? "true" : "false"} onChange={e => setForm((f: any) => ({ ...f, prescription_required: e.target.value === "true" }))}>
+                <option value="false">No</option>
+                <option value="true">Yes</option>
+              </select>
+            </div>
+            <div className="col-span-1">
+              <label className="block text-sm mb-1 font-medium text-gray-700">In Stock</label>
+              <select className="w-full border rounded-xl px-4 py-2 bg-white/80 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all shadow-sm" value={form.in_stock ? "true" : "false"} onChange={e => setForm((f: any) => ({ ...f, in_stock: e.target.value === "true" }))}>
+                <option value="true">Yes</option>
+                <option value="false">No</option>
+              </select>
+            </div>
+            <div className="col-span-1">
+              <label className="block text-sm mb-1 font-medium text-gray-700">Manufacturer</label>
+              <input className="w-full border rounded-xl px-4 py-2 bg-white/80 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all shadow-sm" value={form.manufacturer || ""} onChange={e => setForm((f: any) => ({ ...f, manufacturer: e.target.value }))} />
+            </div>
+            <div className="col-span-1">
+              <label className="block text-sm mb-1 font-medium text-gray-700">Pack Size</label>
+              <input className="w-full border rounded-xl px-4 py-2 bg-white/80 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all shadow-sm" value={form.pack_size || ""} onChange={e => setForm((f: any) => ({ ...f, pack_size: e.target.value }))} />
+            </div>
+            <div className="col-span-1">
+              <label className="block text-sm mb-1 font-medium text-gray-700">Strength</label>
+              <input className="w-full border rounded-xl px-4 py-2 bg-white/80 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all shadow-sm" value={form.strength || ""} onChange={e => setForm((f: any) => ({ ...f, strength: e.target.value }))} />
+            </div>
+            <div className="col-span-2 mb-2">
+              <h3 className="text-lg font-semibold text-gray-800 mb-2 tracking-wide border-b border-gray-100 pb-2 mt-4">Details</h3>
+            </div>
+            <div className="col-span-2">
+              <label className="block text-sm mb-1 font-medium text-gray-700">Description</label>
+              <textarea className="w-full border rounded-xl px-4 py-2 min-h-[60px] bg-white/80 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all shadow-sm" value={form.description || ""} onChange={e => setForm((f: any) => ({ ...f, description: e.target.value }))} />
+            </div>
+            <div className="col-span-1">
+              <label className="block text-sm mb-1 font-medium text-gray-700">Mechanism of Action</label>
+              <input className="w-full border rounded-xl px-4 py-2 bg-white/80 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all shadow-sm" value={form.mechanism_of_action || ""} onChange={e => setForm((f: any) => ({ ...f, mechanism_of_action: e.target.value }))} />
+            </div>
+            <div className="col-span-1">
+              <label className="block text-sm mb-1 font-medium text-gray-700">Indications</label>
+              <input className="w-full border rounded-xl px-4 py-2 bg-white/80 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all shadow-sm" value={form.indications || ""} onChange={e => setForm((f: any) => ({ ...f, indications: e.target.value }))} />
+            </div>
+            <div className="col-span-1">
+              <label className="block text-sm mb-1 font-medium text-gray-700">Warranty</label>
+              <input className="w-full border rounded-xl px-4 py-2 bg-white/80 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all shadow-sm" value={form.warranty || ""} onChange={e => setForm((f: any) => ({ ...f, warranty: e.target.value }))} />
+            </div>
+            <div className="col-span-1">
+              <label className="block text-sm mb-1 font-medium text-gray-700">Storage</label>
+              <input className="w-full border rounded-xl px-4 py-2 bg-white/80 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all shadow-sm" value={form.storage || ""} onChange={e => setForm((f: any) => ({ ...f, storage: e.target.value }))} />
+            </div>
+            <div className="col-span-1">
+              <label className="block text-sm mb-1 font-medium text-gray-700">Pregnancy Category</label>
+              <input className="w-full border rounded-xl px-4 py-2 bg-white/80 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all shadow-sm" value={form.pregnancy_category || ""} onChange={e => setForm((f: any) => ({ ...f, pregnancy_category: e.target.value }))} />
+            </div>
+            <div className="col-span-1">
+              <label className="block text-sm mb-1 font-medium text-gray-700">Lactation</label>
+              <input className="w-full border rounded-xl px-4 py-2 bg-white/80 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all shadow-sm" value={form.lactation || ""} onChange={e => setForm((f: any) => ({ ...f, lactation: e.target.value }))} />
+            </div>
+            {/* Sticky footer for actions */}
+            <DialogFooter className="col-span-2 flex justify-end gap-4 mt-4 sticky bottom-0 bg-gradient-to-t from-white/90 to-transparent pt-6 pb-2 z-10 border-t border-gray-100 px-8">
+              <button type="submit" className="px-8 py-3 bg-gray-900 text-white rounded-full text-lg font-semibold shadow hover:bg-gray-800 transition-colors" disabled={saving}>{saving ? "Saving..." : "Save"}</button>
+              <DialogClose asChild>
+                <button type="button" className="px-8 py-3 border rounded-full text-lg font-semibold">Cancel</button>
+              </DialogClose>
+            </DialogFooter>
+            {error && <div className="text-red-500 text-sm mt-2 col-span-2 text-center">{error}</div>}
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDelete} onOpenChange={setShowDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Product</AlertDialogTitle>
+            <AlertDialogDescription>Are you sure you want to delete this product?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel asChild>
+              <button type="button" className="px-4 py-2 border rounded">Cancel</button>
+            </AlertDialogCancel>
+            <AlertDialogAction asChild>
+              <button type="button" className="px-4 py-2 bg-red-600 text-white rounded" onClick={handleDeleteProduct} disabled={saving}>{saving ? "Deleting..." : "Delete"}</button>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+          {error && <div className="text-red-500 text-sm mt-2">{error}</div>}
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
