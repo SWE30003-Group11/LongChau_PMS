@@ -14,6 +14,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { cn } from "@/lib/utils"
 import { supabase } from "@/lib/supabase/client"
 import { useAuth } from "@/contexts/AuthContext"
+import { useNotification } from '@/contexts/NotificationContext';
 
 interface UploadedFile {
   id: string
@@ -53,6 +54,7 @@ const prescriptionProducts: PrescriptionProduct[] = [
 ]
 
 export default function PrescriptionUploadPage() {
+  const { addNotification } = useNotification();
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
   const [isUploading, setIsUploading] = useState(false)
   const [selectedProducts, setSelectedProducts] = useState<number[]>([])
@@ -97,7 +99,11 @@ export default function PrescriptionUploadPage() {
   const handleFileUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return
     if (!user) {
-      alert("You must be logged in to upload prescriptions.");
+      addNotification({
+        title: 'Authentication Required',
+        message: 'You must be logged in to upload prescriptions.',
+        type: 'error'
+      });
       return;
     }
     setIsUploading(true)
@@ -141,6 +147,12 @@ export default function PrescriptionUploadPage() {
       }
     }
     setIsUploading(false)
+
+    addNotification({
+      title: 'Prescription Uploaded',
+      message: 'Your prescription has been uploaded and will be reviewed by our pharmacists.',
+      type: 'success'
+    });
   }
 
   // Handle drag and drop
@@ -178,12 +190,20 @@ export default function PrescriptionUploadPage() {
   // Submit prescription
   const handleSubmit = async () => {
     if (uploadedFiles.length === 0) {
-      alert("Please upload at least one prescription")
+      addNotification({
+        title: 'Upload Required',
+        message: 'Please upload at least one prescription',
+        type: 'warning'
+      });
       return
     }
 
     if (!patientInfo.fullName || !patientInfo.dateOfBirth || !patientInfo.phone) {
-      alert("Please fill in all required patient information")
+      addNotification({
+        title: 'Missing Information',
+        message: 'Please fill in all required patient information',
+        type: 'warning'
+      });
       return
     }
 
@@ -204,8 +224,11 @@ export default function PrescriptionUploadPage() {
     
     setIsUploading(false)
     
-    // Show success message
-    alert("Prescription uploaded successfully! You can now purchase the prescribed medications.")
+    addNotification({
+      title: 'Prescription Submitted',
+      message: 'Your prescription has been submitted successfully. We will review it shortly.',
+      type: 'success'
+    });
   }
 
   return (

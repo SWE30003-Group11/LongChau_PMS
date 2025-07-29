@@ -9,13 +9,15 @@ import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Textarea } from "@/components/ui/textarea"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { motion, AnimatePresence } from "framer-motion"
+import { motion, AnimatePresence } from "@/lib/framer"
 import { useCart } from "@/hooks/use-cart"
 import { cn } from "@/lib/utils"
 import { supabase } from "@/lib/supabase/client"
 import { useEffect } from "react"
+import { useNotification } from '@/contexts/NotificationContext';
 
 export default function CheckoutPage() {
+  const { addNotification } = useNotification();
   // Dynamic branches from Supabase
   const [branches, setBranches] = useState<any[]>([])
   useEffect(() => {
@@ -190,45 +192,109 @@ export default function CheckoutPage() {
     fetchBranchStock()
   }, [cart, branches])
   
+  // Update stock quantities after successful order
+  async function updateInventory(orderItems: any[]) {
+    for (const item of orderItems) {
+      const branchId = Number(selectedBranch);
+      const qty = branchStock[branchId]?.[item.id] ?? 0;
+      const newQty = qty - item.quantity;
+
+      // Find inventory row id
+      const { data: invRows, error: invErr } = await supabase
+        .from('inventory')
+        .select('id')
+        .eq('branch_id', branchId)
+        .eq('product_id', item.id)
+        .single();
+
+      if (invErr || !invRows) {
+        addNotification({
+          title: 'Inventory Update Failed',
+          message: `Failed to update inventory for ${item.name}. Please contact support.`,
+          type: 'error'
+        });
+        continue;
+      }
+
+      const { error: updateErr } = await supabase
+        .from('inventory')
+        .update({ quantity: newQty, updated_at: new Date().toISOString() })
+        .eq('id', invRows.id);
+
+      if (updateErr) {
+        addNotification({
+          title: 'Inventory Update Failed',
+          message: `Failed to update inventory for ${item.name}. Please contact support.`,
+          type: 'error'
+        });
+        continue;
+      }
+
+      // Check if new quantity is at critical levels
+      if (newQty <= 5) {
+        addNotification({
+          title: 'Critical Stock Warning',
+          message: `${item.name} has reached critical stock level (${newQty} units)`,
+          type: 'error',
+          duration: 0
+        });
+      } else if (newQty <= 20) {
+        addNotification({
+          title: 'Low Stock Warning',
+          message: `${item.name} is running low (${newQty} units)`,
+          type: 'warning',
+          duration: 0
+        });
+      }
+    }
+  }
+
   // Handle order submission
   const handlePlaceOrder = async () => {
     // Validate required fields
     if (!customerInfo.fullName || !customerInfo.phone) {
-      alert("Please fill in all required fields")
-      return
+      addNotification({
+        title: 'Missing Information',
+        message: 'Please fill in all required fields',
+        type: 'warning'
+      });
+      return;
     }
     
     if (fulfillmentMethod === 'pickup' && !selectedBranch) {
-      alert("Please select a pickup branch")
-      return
+      addNotification({
+        title: 'Branch Required',
+        message: 'Please select a pickup branch',
+        type: 'warning'
+      });
+      return;
     }
     
     if (fulfillmentMethod === 'delivery' && !customerInfo.address) {
-      alert("Please enter delivery address")
-      return
+      addNotification({
+        title: 'Address Required',
+        message: 'Please enter delivery address',
+        type: 'warning'
+      });
+      return;
     }
     
     if (!paymentMethod) {
-      alert("Please select a payment method")
-      return
+      addNotification({
+        title: 'Payment Method Required',
+        message: 'Please select a payment method',
+        type: 'warning'
+      });
+      return;
     }
     
     if (requiresPrescription && !uploadedPrescription) {
-      alert("Please upload prescription for prescription-required items")
-      return
-    }
-    
-    if (paymentMethod === "card") {
-      // Validate card details
-      if (!cardDetails.number || !cardDetails.expiry || !cardDetails.cvv || !cardDetails.name) {
-        alert("Please fill in all card details")
-        return
-      }
-    }
-    
-    if (paymentMethod === "ewallet" && !selectedWallet) {
-      alert("Please select an e-wallet provider")
-      return
+      addNotification({
+        title: 'Prescription Required',
+        message: 'Please upload prescription for prescription-required items',
+        type: 'warning'
+      });
+      return;
     }
     
     // Check inventory before placing order (for pickup)
@@ -236,132 +302,135 @@ export default function CheckoutPage() {
       for (const item of cart) {
         const qty = branchStock[Number(selectedBranch)]?.[item.id] ?? 0
         if (qty < item.quantity) {
-          alert(`Not enough stock for ${item.name} at this branch. Please adjust your cart or choose another branch.`)
-          return
+          addNotification({
+            title: 'Insufficient Stock',
+            message: `Not enough stock for ${item.name} at this branch. Please adjust your cart or choose another branch.`,
+            type: 'error'
+          });
+          return;
         }
       }
     }
     // Simulate order creation
-    const orderInsert = await supabase.from('orders').insert({
-      user_id: user?.id,
-      order_number: `LC${Date.now()}`,
-      status: 'pending',
-      total_amount: total,
-      payment_method: paymentMethod,
-      payment_status: paymentMethod === 'cash' ? 'pending' : 'paid',
-      fulfillment_method: fulfillmentMethod,
-      branch_id: fulfillmentMethod === 'pickup' ? Number(selectedBranch) : null,
-      delivery_address: fulfillmentMethod === 'delivery' ? customerInfo.address : null,
-      notes: customerInfo.notes,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }).select('id').single()
-    if (orderInsert.error || !orderInsert.data) {
-      alert('Failed to create order. Please try again.')
-      return
-    }
-    const orderId = orderInsert.data.id
-    setLastOrderId(orderId)
-    // Insert order items
-    const orderItems = cart.map(item => ({
-      order_id: orderId,
-      product_id: item.id,
-      product_name: item.name,
-      quantity: item.quantity,
-      unit_price: item.price,
-      prescription_required: !!item.prescriptionRequired
-    }))
-    const { error: orderItemsError } = await supabase.from('order_items').insert(orderItems)
-    if (orderItemsError) {
-      alert('Failed to record order items. Please contact support.')
-      return
-    }
-    // Subtract inventory for pickup orders
-    if (fulfillmentMethod === 'pickup') {
-      for (const item of cart) {
-        const branchId = Number(selectedBranch)
-        const qty = branchStock[branchId]?.[item.id] ?? 0
-        const newQty = qty - item.quantity
-        // Find inventory row id
-        const { data: invRows, error: invErr } = await supabase
-          .from('inventory')
-          .select('id')
-          .eq('branch_id', branchId)
-          .eq('product_id', item.id)
-          .single()
-        if (invErr || !invRows) {
-          alert(`Failed to update inventory for ${item.name}. Please contact support.`)
-          return
-        }
-        const { error: updateErr } = await supabase
-          .from('inventory')
-          .update({ quantity: newQty, updated_at: new Date().toISOString() })
-          .eq('id', invRows.id)
-        if (updateErr) {
-          alert(`Failed to update inventory for ${item.name}. Please contact support.`)
-          return
-        }
-      }
-    }
-    // Insert payment record
-    const paymentInsert = await supabase.from('payments').insert({
-      order_id: orderId,
-      payment_method: paymentMethod,
-      amount: total,
-      status: paymentMethod === 'cash' ? 'pending' : 'paid',
-      paid_at: paymentMethod === 'cash' ? null : new Date().toISOString(),
-      created_at: new Date().toISOString(),
-    })
-    if (paymentInsert.error) {
-      alert('Failed to create payment record. Please try again.')
-      return
-    }
-    // Always insert delivery record if delivery
-    if (fulfillmentMethod === 'delivery') {
-      console.log('DELIVERY DEBUG:')
-      console.log('User:', user)
-      console.log('OrderId:', orderId)
-      console.log('delivery_address:', customerInfo.address)
-      console.log('delivery_method:', 'standard')
-      console.log('status:', 'pending')
-      console.log('created_at:', new Date().toISOString())
-      if (!user?.id) console.error('User ID is missing!')
-      if (!orderId) console.error('Order ID is missing!')
-      if (!customerInfo.address) console.error('Delivery address is missing!')
-      const deliveryInsert = await supabase.from('deliveries').insert({
-        order_id: orderId,
-        delivery_address: customerInfo.address,
-        delivery_method: 'standard',
+    try {
+      const orderInsert = await supabase.from('orders').insert({
+        user_id: user?.id,
+        order_number: `LC${Date.now()}`,
         status: 'pending',
+        total_amount: total,
+        payment_method: paymentMethod,
+        payment_status: paymentMethod === 'cash' ? 'pending' : 'paid',
+        fulfillment_method: fulfillmentMethod,
+        branch_id: fulfillmentMethod === 'pickup' ? Number(selectedBranch) : null,
+        delivery_address: fulfillmentMethod === 'delivery' ? customerInfo.address : null,
+        notes: customerInfo.notes,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }).select('id').single()
+      if (orderInsert.error || !orderInsert.data) {
+        addNotification({
+          title: 'Order Failed',
+          message: 'Failed to create order. Please try again.',
+          type: 'error'
+        });
+        return;
+      }
+      const orderId = orderInsert.data.id
+      setLastOrderId(orderId)
+      // Insert order items
+      const orderItems = cart.map(item => ({
+        order_id: orderId,
+        product_id: item.id,
+        product_name: item.name,
+        quantity: item.quantity,
+        unit_price: item.price,
+        prescription_required: !!item.prescriptionRequired
+      }))
+      const { error: orderItemsError } = await supabase.from('order_items').insert(orderItems)
+      if (orderItemsError) {
+        alert('Failed to record order items. Please contact support.')
+        return
+      }
+      // Subtract inventory for pickup orders
+      if (fulfillmentMethod === 'pickup') {
+        await updateInventory(cart);
+      }
+      // Insert payment record
+      const paymentInsert = await supabase.from('payments').insert({
+        order_id: orderId,
+        payment_method: paymentMethod,
+        amount: total,
+        status: paymentMethod === 'cash' ? 'pending' : 'paid',
+        paid_at: paymentMethod === 'cash' ? null : new Date().toISOString(),
         created_at: new Date().toISOString(),
       })
-      if (deliveryInsert.error) {
-        console.error('Delivery insert error:', deliveryInsert.error)
-        alert('Failed to create delivery record. Error: ' + deliveryInsert.error.message)
+      if (paymentInsert.error) {
+        alert('Failed to create payment record. Please try again.')
         return
-      } else {
-        console.log('Delivery insert success:', deliveryInsert)
       }
-    }
-    // Process payment
-    if (paymentMethod === "cash") {
-      setOrderPlaced(true)
-      clearCart()
-    } else {
-      await processPayment()
-    }
-
-    if (fulfillmentMethod === 'delivery' && saveNewAddress && user?.id && customerInfo.address) {
-      const alreadyExists = savedAddresses.some(addr => addr.address === customerInfo.address)
-      if (!alreadyExists) {
-        await supabase.from('saved_addresses').insert({
-          user_id: user.id,
-          label: 'Saved Address',
-          address: customerInfo.address,
-          is_default: false,
+      // Always insert delivery record if delivery
+      if (fulfillmentMethod === 'delivery') {
+        console.log('DELIVERY DEBUG:')
+        console.log('User:', user)
+        console.log('OrderId:', orderId)
+        console.log('delivery_address:', customerInfo.address)
+        console.log('delivery_method:', 'standard')
+        console.log('status:', 'pending')
+        console.log('created_at:', new Date().toISOString())
+        if (!user?.id) console.error('User ID is missing!')
+        if (!orderId) console.error('Order ID is missing!')
+        if (!customerInfo.address) console.error('Delivery address is missing!')
+        const deliveryInsert = await supabase.from('deliveries').insert({
+          order_id: orderId,
+          delivery_address: customerInfo.address,
+          delivery_method: 'standard',
+          status: 'pending',
           created_at: new Date().toISOString(),
         })
+        if (deliveryInsert.error) {
+          console.error('Delivery insert error:', deliveryInsert.error)
+          alert('Failed to create delivery record. Error: ' + deliveryInsert.error.message)
+          return
+        } else {
+          console.log('Delivery insert success:', deliveryInsert)
+        }
       }
+      // Process payment
+      if (paymentMethod === "cash") {
+        setOrderPlaced(true)
+        clearCart()
+        addNotification({
+          title: 'Order Placed Successfully',
+          message: 'Your order has been placed. Please pay at pickup.',
+          type: 'success'
+        });
+      } else {
+        await processPayment()
+        addNotification({
+          title: 'Payment Successful',
+          message: 'Your order has been placed and payment processed successfully.',
+          type: 'success'
+        });
+      }
+
+      if (fulfillmentMethod === 'delivery' && saveNewAddress && user?.id && customerInfo.address) {
+        const alreadyExists = savedAddresses.some(addr => addr.address === customerInfo.address)
+        if (!alreadyExists) {
+          await supabase.from('saved_addresses').insert({
+            user_id: user.id,
+            label: 'Saved Address',
+            address: customerInfo.address,
+            is_default: false,
+            created_at: new Date().toISOString(),
+          })
+        }
+      }
+    } catch (error) {
+      addNotification({
+        title: 'Order Failed',
+        message: 'An error occurred while processing your order. Please try again.',
+        type: 'error'
+      });
     }
   }
   

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Search, Filter, Eye, Download, ArrowUpDown, ShoppingBag, Clock, CheckCircle } from "lucide-react"
-import { motion } from "framer-motion"
+import { motion } from "@/lib/framer"
 import { supabase } from "@/lib/supabase/client"
 import { useAuth } from "@/contexts/AuthContext"
 

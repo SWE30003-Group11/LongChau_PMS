@@ -7,6 +7,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { useCart } from "@/hooks/use-cart"
 import { useState, useEffect } from "react"
 import { supabase } from "@/lib/supabase/client"
+import { useNotification } from '@/contexts/NotificationContext'
 
 // Helper function to get product image URL from storage
 function getProductImageUrl(productName: string): string {
@@ -30,6 +31,7 @@ interface Product {
 
 export default function ShopPage() {
   const { addToCart } = useCart()
+  const { addNotification } = useNotification()
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
@@ -141,6 +143,35 @@ export default function ShopPage() {
     (currentPage - 1) * productsPerPage,
     currentPage * productsPerPage
   )
+
+  const handleAddToCart = (product: any) => {
+    if (product.inventory && product.inventory.length > 0 && !product.prescription_required) {
+      const result = addToCart({
+        id: product.id,
+        name: product.name,
+        price: product.price,
+        image: getProductImageUrl(product.name),
+        quantity: 1,
+        prescriptionRequired: product.prescription_required
+      })
+
+      if (result.type === 'ADD') {
+        addNotification({
+          title: 'Added to Cart',
+          message: `${product.name} has been added to your cart`,
+          type: 'success'
+        })
+      } else if (result.type === 'UPDATE') {
+        addNotification({
+          title: 'Cart Updated',
+          message: `Updated quantity of ${product.name} in your cart`,
+          type: 'success'
+        })
+      }
+    } else if (product.prescription_required) {
+      window.location.href = `/shop/${product.id}`
+    }
+  }
 
   return (
     <div className="min-h-screen">
@@ -406,20 +437,7 @@ export default function ShopPage() {
                           className="w-full rounded-full text-sm mt-2"
                           variant={product.inventory && product.inventory.length > 0 ? "default" : "outline"}
                           disabled={!(product.inventory && product.inventory.length > 0)}
-                          onClick={() => {
-                            if (product.inventory && product.inventory.length > 0 && !product.prescription_required) {
-                              addToCart({
-                                id: product.id,
-                                name: product.name,
-                                price: product.price,
-                                image: getProductImageUrl(product.name),
-                                quantity: 1,
-                                prescriptionRequired: product.prescription_required
-                              })
-                            } else if (product.prescription_required) {
-                              window.location.href = `/shop/${product.id}`
-                            }
-                          }}
+                          onClick={() => handleAddToCart(product)}
                         >
                           {product.inventory && product.inventory.length > 0 ? (product.prescription_required ? "Upload Prescription" : "Add to Cart") : "Notify Me"}
                         </Button>
