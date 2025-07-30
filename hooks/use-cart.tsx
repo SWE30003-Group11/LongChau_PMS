@@ -12,36 +12,42 @@ export interface CartItem {
 
 interface CartStore {
   cart: CartItem[]
-  addToCart: (item: CartItem) => void
-  removeFromCart: (id: number) => void
+  addToCart: (item: CartItem) => { type: 'ADD' | 'UPDATE', item: CartItem }
+  removeFromCart: (id: number) => { type: 'REMOVE', item: CartItem | undefined }
   updateQuantity: (id: number, quantity: number) => void
   clearCart: () => void
 }
 
 export const useCart = create<CartStore>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       cart: [],
       
-      addToCart: (item) => set((state) => {
-        const existingItem = state.cart.find((i) => i.id === item.id)
+      addToCart: (item) => {
+        const existingItem = get().cart.find((i) => i.id === item.id)
         
         if (existingItem) {
           // Update quantity if item already exists
-          return {
-            cart: state.cart.map((i) =>
+          set({
+            cart: get().cart.map((i) =>
               i.id === item.id ? { ...i, quantity: item.quantity } : i
             ),
-          }
+          })
+          return { type: 'UPDATE' as const, item }
         }
         
         // Add new item
-        return { cart: [...state.cart, item] }
-      }),
+        set({ cart: [...get().cart, item] })
+        return { type: 'ADD' as const, item }
+      },
       
-      removeFromCart: (id) => set((state) => ({
-        cart: state.cart.filter((item) => item.id !== id),
-      })),
+      removeFromCart: (id) => {
+        const item = get().cart.find(i => i.id === id)
+        set({
+          cart: get().cart.filter((item) => item.id !== id),
+        })
+        return { type: 'REMOVE' as const, item }
+      },
       
       updateQuantity: (id, quantity) => set((state) => ({
         cart: state.cart.map((item) =>

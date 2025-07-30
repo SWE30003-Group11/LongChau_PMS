@@ -7,6 +7,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { useCart } from "@/hooks/use-cart"
 import { useState, useEffect } from "react"
 import { supabase } from "@/lib/supabase/client"
+import { useNotification } from '@/contexts/NotificationContext'
 
 // Helper function to get product image URL from storage
 function getProductImageUrl(productName: string, updatedAt?: string | number): string {
@@ -33,6 +34,7 @@ interface Product {
 
 export default function ShopPage() {
   const { addToCart } = useCart()
+  const { addNotification } = useNotification()
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)

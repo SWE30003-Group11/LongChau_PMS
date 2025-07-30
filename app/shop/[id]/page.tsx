@@ -10,6 +10,7 @@ import { motion } from "framer-motion"
 import { useCart } from "@/hooks/use-cart"
 import { supabase } from "@/lib/supabase/client"
 import { useAuth } from "@/contexts/AuthContext"
+import { useNotification } from "@/contexts/NotificationContext"
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip"
 
 // Helper to map branch_id to branch name
@@ -77,6 +78,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
   const [quantity, setQuantity] = useState(1)
   const [showPrescriptionUpload, setShowPrescriptionUpload] = useState(false)
   const { addToCart } = useCart()
+  const { addNotification } = useNotification()
   const { user } = useAuth()
   const [isFavorite, setIsFavorite] = useState(false)
   const [favoriteId, setFavoriteId] = useState<string | null>(null)
@@ -126,12 +128,22 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
       await supabase.from('favorite_products').delete().eq('id', favoriteId)
       setIsFavorite(false)
       setFavoriteId(null)
+      addNotification({
+        title: 'Removed from Favorites',
+        message: `${product.name} has been removed from your favorites`,
+        type: 'info'
+      });
     } else {
       // Add favorite
       const { data, error } = await supabase.from('favorite_products').insert({ user_id: user.id, product_id: product.id }).select('id').single()
       if (!error && data && data.id) {
         setIsFavorite(true)
         setFavoriteId(data.id)
+        addNotification({
+          title: 'Added to Favorites',
+          message: `${product.name} has been added to your favorites`,
+          type: 'success'
+        });
       }
     }
     setFavoriteLoading(false)
@@ -160,11 +172,8 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
   const category = product.category || "Other"
 
   const handleAddToCart = () => {
-    if (prescriptionRequired && !showPrescriptionUpload) {
-      setShowPrescriptionUpload(true)
-      return
-    }
-    addToCart({
+    if (!product) return
+    const result = addToCart({
       id: product.id,
       name: product.name,
       price: price,
@@ -172,6 +181,21 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
       quantity: quantity,
       prescriptionRequired: prescriptionRequired
     })
+
+    // Show appropriate notification based on action type
+    if (result.type === 'ADD') {
+      addNotification({
+        title: 'Added to Cart',
+        message: `${product.name} has been added to your cart`,
+        type: 'success'
+      })
+    } else if (result.type === 'UPDATE') {
+      addNotification({
+        title: 'Cart Updated', 
+        message: `Updated quantity of ${product.name} in your cart`,
+        type: 'success'
+      })
+    }
   }
 
   const totalStock = (product?.inventory || []).reduce((sum, inv) => sum + (inv.quantity || 0), 0);
@@ -249,7 +273,6 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                   )}
                 </div>
               </div>
-
               {/* Prescription Alert */}
               {prescriptionRequired && (
                 <Alert className="mb-6 border-blue-200 bg-blue-50">

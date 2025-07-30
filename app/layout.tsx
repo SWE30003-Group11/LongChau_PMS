@@ -1,10 +1,7 @@
-import type React from "react"
 import type { Metadata } from "next"
 import { Inter, Playfair_Display } from "next/font/google"
 import "./globals.css"
-import Navbar from "@/components/navbar"
-import Footer from "@/components/footer"
-import { AuthProvider } from "@/contexts/AuthContext"
+import { ClientLayout } from "./client-layout.tsx"
 
 const inter = Inter({
   subsets: ["latin"],
@@ -28,17 +25,13 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode
-}>) {
+}) {
   return (
-    <html lang="en">
-      <body className={`${inter.variable} ${playfair.variable} font-sans`}>
-        <AuthProvider>
-          <Navbar />
-          <main>{children}</main>
-          <Footer />
-        </AuthProvider>
+    <html lang="en" suppressHydrationWarning>
+      <body className={`min-h-screen bg-background font-sans antialiased ${inter.variable} ${playfair.variable}`}>
+        <ClientLayout>{children}</ClientLayout>
       </body>
     </html>
   )

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { Shield, Award, Users, Heart, ArrowRight, Quote, Pill, Stethoscope, Building2 } from "lucide-react"
-import { motion, useScroll, useTransform, useInView } from "framer-motion"
+import { motion, useScroll, useTransform, useInView } from "@/lib/framer"
 import { cn } from "@/lib/utils"
 
 // 3D Dot Arch Pill Component
