@@ -52,12 +52,15 @@ interface Product {
   registration_number?: string | null
   barcode?: string | null
   quality_features?: string | null
+  updated_at?: string | null
 }
 
 // Helper function to get product image URL from storage
-function getProductImageUrl(productName: string, imageIndex: number = 0): string {
+function getProductImageUrl(productName: string, updatedAt?: string | number): string {
   const { data } = supabase.storage.from('product-images').getPublicUrl(`${productName}.png`)
-  return data.publicUrl
+  // Use updatedAt if available, else fallback to Date.now()
+  const cacheBuster = updatedAt ? `?t=${updatedAt}` : `?t=${Date.now()}`;
+  return data.publicUrl + cacheBuster;
 }
 
 // Helper function to get multiple product images
@@ -159,13 +162,12 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
   try { if (product.related_products) relatedProducts = JSON.parse(product.related_products) } catch {}
   
   // Get product image from storage
-  const imageSrc = getProductImageUrl(product.name)
+  const imageSrc = getProductImageUrl(product.name, product.updated_at || Date.now());
 
   const manufacturer = product.manufacturer || "Unknown"
   const genericName = product.generic_name || null
   const price = typeof product.price === "number" ? product.price : 0
   const originalPrice = typeof product.original_price === "number" ? product.original_price : null
-  const inStock = product.in_stock !== undefined ? product.in_stock : true
   const prescriptionRequired = !!product.prescription_required
   const category = product.category || "Other"
 
@@ -174,8 +176,8 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
     const result = addToCart({
       id: product.id,
       name: product.name,
-      price: product.price,
-      image: getProductImageUrl(product.name),
+      price: price,
+      image: getProductImageUrl(product.name, product.updated_at || Date.now()),
       quantity: quantity,
       prescriptionRequired: prescriptionRequired
     })
@@ -197,6 +199,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
   }
 
   const totalStock = (product?.inventory || []).reduce((sum, inv) => sum + (inv.quantity || 0), 0);
+  const inStock = totalStock > 0;
 
   return (
     <div className="min-h-screen pt-24 pb-20 bg-gradient-to-b from-white to-gray-50">

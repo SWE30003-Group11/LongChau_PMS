@@ -36,6 +36,15 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null
 }
 
+// Helper to normalize payment method
+function getPaymentMethodType(method: string) {
+  const m = method.toLowerCase()
+  if (['e-wallet', 'ewallet', 'momo', 'zalopay', 'vnpay', 'zalo pay', 'momo pay'].some(val => m.includes(val))) return 'E-wallet'
+  if (['credit card', 'card', 'visa', 'mastercard'].some(val => m.includes(val))) return 'Credit Card'
+  if (['cash', 'tiền mặt'].some(val => m.includes(val))) return 'Cash'
+  return method.charAt(0).toUpperCase() + method.slice(1)
+}
+
 export default function PaymentsPage() {
   const { profile } = useAuth()
   const [payments, setPayments] = useState<any[]>([])
@@ -47,6 +56,9 @@ export default function PaymentsPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const paymentsPerPage = 10
   const [exporting, setExporting] = useState(false)
+  const [filterMethod, setFilterMethod] = useState('all')
+  // Remove DateRange import and all date range filter logic
+  // Remove filterDateRange, showDateRange, and related state
 
   useEffect(() => {
     async function fetchPayments() {
@@ -75,15 +87,59 @@ export default function PaymentsPage() {
         orderId: p.order?.order_number || p.order_id,
         customer: p.order?.user?.full_name || "-",
         amount: p.amount,
-        method: p.payment_method.charAt(0).toUpperCase() + p.payment_method.slice(1),
+        method: getPaymentMethodType(p.payment_method),
         date: p.created_at ? p.created_at.slice(0, 10) : "",
         status: p.status.charAt(0).toUpperCase() + p.status.slice(1),
+        orderStatus: p.order?.status ? (p.order.status === 'delivered' ? 'Completed' : p.order.status.charAt(0).toUpperCase() + p.order.status.slice(1)) : '',
       }))
       setPayments(mapped)
       setLoading(false)
     }
     fetchPayments()
   }, [profile?.current_branch_id])
+
+  // Only count cash if order is completed, always count e-wallet/card
+  const filteredForStats = payments.filter(p => {
+    if (getPaymentMethodType(p.method) === 'Cash') {
+      return p.orderStatus === 'Completed'
+    }
+    return true
+  })
+
+  // Define all possible payment methods and their colors
+  const PAYMENT_METHODS = [
+    { name: 'Cash', color: COLORS.cash },
+    { name: 'Credit Card', color: COLORS.creditCard },
+    { name: 'E-wallet', color: COLORS.bankTransfer },
+  ];
+
+  // Pie chart data: always show all methods, even if value is 0
+  const paymentMethodData = PAYMENT_METHODS.map(({ name, color }) => ({
+    name,
+    value: filteredForStats.filter(p => getPaymentMethodType(p.method) === name).length,
+    color,
+  }))
+
+  // Revenue by method
+  const ewalletRevenue = filteredForStats.filter(p => getPaymentMethodType(p.method) === 'E-wallet').reduce((sum, p) => sum + (p.amount || 0), 0)
+  const cardRevenue = filteredForStats.filter(p => getPaymentMethodType(p.method) === 'Credit Card').reduce((sum, p) => sum + (p.amount || 0), 0)
+
+  // Filtering logic for UI (only by payment method)
+  const filteredPayments = payments.filter(p => {
+    return filterMethod === 'all' || getPaymentMethodType(p.method).toLowerCase() === filterMethod
+  })
+
+  // Pie chart and revenue stats: always use all-time data for pie chart, use filteredPayments for cards
+  const allTimeCounts = PAYMENT_METHODS.map(({ name }) => ({
+    name,
+    value: payments.filter(p => getPaymentMethodType(p.method) === name).length,
+    color: PAYMENT_METHODS.find(m => m.name === name)?.color || '#ccc',
+  }))
+  const pieChartData = allTimeCounts
+
+  const cashRevenue = payments.filter(p => getPaymentMethodType(p.method) === 'Cash').reduce((sum, p) => sum + (p.amount || 0), 0)
+  const ewalletRevenueAllTime = payments.filter(p => getPaymentMethodType(p.method) === 'E-wallet').reduce((sum, p) => sum + (p.amount || 0), 0)
+  const cardRevenueAllTime = payments.filter(p => getPaymentMethodType(p.method) === 'Credit Card').reduce((sum, p) => sum + (p.amount || 0), 0)
 
   const handleSort = (field: string) => {
     if (sortField === field) {
@@ -93,14 +149,6 @@ export default function PaymentsPage() {
       setSortDirection("asc")
     }
   }
-
-  const filteredPayments = payments.filter(
-    (payment) =>
-      payment.id.toString().toLowerCase().includes(searchTerm.toLowerCase()) ||
-      payment.orderId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      payment.customer?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      payment.method?.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
 
   const sortedPayments = [...filteredPayments].sort((a, b) => {
     if (!sortField) return 0
@@ -119,19 +167,9 @@ export default function PaymentsPage() {
   const paginatedPayments = sortedPayments.slice((currentPage - 1) * paymentsPerPage, currentPage * paymentsPerPage)
 
   // Stats
-  const totalRevenue = payments.reduce((sum, p) => sum + (p.amount || 0), 0)
-  const completedPayments = payments.filter(p => p.status === "Completed")
+  const totalRevenue = filteredForStats.reduce((sum, p) => sum + (p.amount || 0), 0)
+  const completedPayments = filteredForStats.filter(p => p.status === "Completed")
   const completedRevenue = completedPayments.reduce((sum, p) => sum + (p.amount || 0), 0)
-  const paymentMethodData = Object.entries(
-    payments.reduce((acc: Record<string, number>, curr) => {
-      acc[curr.method] = (acc[curr.method] || 0) + 1
-      return acc
-    }, {})
-  ).map(([name, value]) => ({
-    name,
-    value,
-    color: name === "Credit Card" ? COLORS.creditCard : name === "E-wallet" ? COLORS.bankTransfer : COLORS.cash
-  }))
   const paymentStatusData = [
     { name: "Completed", value: payments.filter((p) => p.status === "Completed").length },
     { name: "Pending", value: payments.filter((p) => p.status === "Pending").length },
@@ -224,7 +262,7 @@ export default function PaymentsPage() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -235,12 +273,11 @@ export default function PaymentsPage() {
               <div>
                 <p className="text-xs uppercase tracking-wider text-gray-500">Total Revenue</p>
                 <h3 className="text-2xl font-light mt-2">₫{totalRevenue.toLocaleString()}</h3>
-                <p className="text-xs text-gray-500 mt-1">From {payments.length} transactions</p>
+                <p className="text-xs text-gray-500 mt-1">All payment methods</p>
               </div>
               <DollarSign size={20} className="text-gray-400" />
             </div>
           </motion.div>
-
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -249,14 +286,13 @@ export default function PaymentsPage() {
           >
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs uppercase tracking-wider text-gray-500">Completed</p>
-                <h3 className="text-2xl font-light mt-2">₫{completedRevenue.toLocaleString()}</h3>
-                <p className="text-xs text-gray-500 mt-1">{completedPayments.length} transactions</p>
+                <p className="text-xs uppercase tracking-wider text-gray-500">Cash Revenue</p>
+                <h3 className="text-2xl font-light mt-2">₫{cashRevenue.toLocaleString()}</h3>
+                <p className="text-xs text-gray-500 mt-1">Cash payments</p>
               </div>
-              <CheckCircle size={20} className="text-green-500" />
+              <CreditCard size={20} className="text-green-400" />
             </div>
           </motion.div>
-
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -265,11 +301,26 @@ export default function PaymentsPage() {
           >
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs uppercase tracking-wider text-gray-500">Success Rate</p>
-                <h3 className="text-2xl font-light mt-2">{Math.round((completedPayments.length / payments.length) * 100)}%</h3>
-                <p className="text-xs text-gray-500 mt-1">Last 30 days</p>
+                <p className="text-xs uppercase tracking-wider text-gray-500">E-wallet Revenue</p>
+                <h3 className="text-2xl font-light mt-2">₫{ewalletRevenueAllTime.toLocaleString()}</h3>
+                <p className="text-xs text-gray-500 mt-1">E-wallet payments</p>
               </div>
-              <TrendingUp size={20} className="text-blue-500" />
+              <CreditCard size={20} className="text-orange-400" />
+            </div>
+          </motion.div>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="bg-white p-6 rounded-2xl border border-gray-100"
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-wider text-gray-500">Card Revenue</p>
+                <h3 className="text-2xl font-light mt-2">₫{cardRevenueAllTime.toLocaleString()}</h3>
+                <p className="text-xs text-gray-500 mt-1">Credit Card payments</p>
+              </div>
+              <CreditCard size={20} className="text-blue-400" />
             </div>
           </motion.div>
         </div>
@@ -284,14 +335,14 @@ export default function PaymentsPage() {
             className="md:col-span-2 bg-white p-6 rounded-2xl border border-gray-100"
           >
             <h3 className="text-lg font-light mb-6">Daily Revenue</h3>
-            <div className="h-64">
+            <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={dailyRevenueData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e5e5" />
-                  <XAxis dataKey="name" stroke={COLORS.secondary} fontSize={12} />
-                  <YAxis stroke={COLORS.secondary} fontSize={12} />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Bar dataKey="revenue" name="Revenue" fill={COLORS.primary} radius={[10, 10, 0, 0]} />
+                <BarChart data={dailyRevenueData} style={{ fontFamily: 'inherit' }}>
+                  <CartesianGrid strokeDasharray="2 6" stroke="#e5e7eb" vertical={false} />
+                  <XAxis dataKey="name" stroke="#222" fontSize={14} tickLine={false} axisLine={false} />
+                  <YAxis stroke="#222" fontSize={14} tickLine={false} axisLine={false} tickFormatter={v => v === 0 ? '' : `₫${v/1000}k`} />
+                  <Tooltip content={<CustomTooltip />} cursor={{ fill: '#00000508' }} wrapperStyle={{ borderRadius: 12, boxShadow: '0 4px 24px #0001' }} />
+                  <Bar dataKey="revenue" name="Revenue" fill="#111" radius={[12, 12, 8, 8]} barSize={32} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -309,7 +360,7 @@ export default function PaymentsPage() {
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={paymentMethodData}
+                    data={pieChartData}
                     cx="50%"
                     cy="50%"
                     innerRadius={50}
@@ -317,7 +368,7 @@ export default function PaymentsPage() {
                     dataKey="value"
                     label={({ name, value }) => `${value}`}
                   >
-                    {paymentMethodData.map((entry, index) => (
+                    {pieChartData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
@@ -326,7 +377,7 @@ export default function PaymentsPage() {
               </ResponsiveContainer>
             </div>
             <div className="mt-4 space-y-2">
-              {paymentMethodData.map((method, index) => (
+              {pieChartData.map((method, index) => (
                 <div key={method.name} className="flex justify-between items-center text-sm">
                   <div className="flex items-center">
                     <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: method.color }} />
@@ -359,10 +410,16 @@ export default function PaymentsPage() {
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
-              <button className="px-4 py-2 border border-gray-200 text-gray-700 rounded-full hover:bg-gray-50 transition-colors flex items-center">
-                <Filter size={16} className="mr-2" />
-                Filter
-              </button>
+              <select
+                className="px-4 py-2 border border-gray-200 text-gray-700 rounded-full"
+                value={filterMethod}
+                onChange={e => setFilterMethod(e.target.value)}
+              >
+                <option value="all">All Methods</option>
+                <option value="cash">Cash</option>
+                <option value="credit card">Credit Card</option>
+                <option value="e-wallet">E-wallet</option>
+              </select>
             </div>
           </div>
 

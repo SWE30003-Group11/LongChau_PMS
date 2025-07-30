@@ -274,17 +274,16 @@ export default function AccountOrdersPage() {
               <DialogTitle>Order Details</DialogTitle>
               <DialogDescription>
                 {detailsOrder && (
-                  <>
-                    <div className="mb-2">
-                      <span className="font-semibold">Order #{detailsOrder.order_number}</span>
-                    </div>
-                    <div className="text-xs text-gray-500">
+                  <span>
+                    <span className="font-semibold">Order #{detailsOrder.order_number}</span>
+                    <br />
+                    <span className="text-xs text-gray-500">
                       Placed: {format(new Date(detailsOrder.created_at), 'MMM d, yyyy h:mm a')}
                       {detailsOrder.updated_at && (
                         <> | Updated: {format(new Date(detailsOrder.updated_at), 'MMM d, yyyy h:mm a')}</>
                       )}
-                    </div>
-                  </>
+                    </span>
+                  </span>
                 )}
               </DialogDescription>
             </DialogHeader>

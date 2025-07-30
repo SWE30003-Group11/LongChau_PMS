@@ -664,146 +664,152 @@ export default function InventoryPage() {
 
       {/* Add/Edit Product Modal */}
       <Dialog open={showAddEdit} onOpenChange={setShowAddEdit}>
-        <DialogContent className="max-w-2xl w-full p-0 bg-white rounded-3xl shadow-2xl border border-gray-100 overflow-y-auto hide-scrollbar" style={{ maxHeight: '90vh' }}>
-          <DialogTitle className="text-2xl font-light tracking-wide text-gray-900 text-center pt-8 pb-2">
-            {editProduct ? "Edit Product" : "Add Product"}
-          </DialogTitle>
-          <DialogDescription className="text-center text-gray-500 mb-4">Upload a product image, then fill in the product details below.</DialogDescription>
-          {/* Image Upload Section */}
-          <div className="flex flex-col items-center justify-center py-6 border-b border-gray-100">
-            <input
-              type="file"
-              accept="image/png"
-              ref={imageFileRef}
-              className="mb-4"
-              onChange={() => {
-                if (imageFileRef.current && imageFileRef.current.files && imageFileRef.current.files[0]) {
-                  const file = imageFileRef.current.files[0]
-                  const reader = new FileReader()
-                  reader.onload = (e) => {
-                    setImagePreview(e.target?.result as string)
-                  }
-                  reader.readAsDataURL(file)
-                } else {
-                  setImagePreview(null)
-                }
-              }}
-            />
-            {imagePreview && (
-              <img src={imagePreview} alt="Preview" className="mt-4 w-48 h-48 object-cover rounded-lg border" />
-            )}
-          </div>
-          {/* Product Form Section */}
+        <DialogContent className="max-w-4xl w-full p-0 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-y-auto" style={{ maxHeight: '90vh' }}>
           <form
             onSubmit={e => {
               e.preventDefault();
               handleSaveProduct();
             }}
-            className="flex flex-col px-8 pt-8 pb-4"
+             className="flex flex-col"
           >
-            {/* Product Info Section */}
-            <div className="col-span-2 mb-2">
-              <h3 className="text-lg font-semibold text-gray-800 mb-2 tracking-wide border-b border-gray-100 pb-2">Basic Information</h3>
-            </div>
-            <div className="col-span-1">
-              <label className="block text-sm mb-1 font-medium text-gray-700">Name</label>
-              <input className="w-full border rounded-xl px-4 py-2 bg-white/80 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all shadow-sm" value={form.name || ""} onChange={e => setForm((f: any) => ({ ...f, name: e.target.value }))} required />
-            </div>
-            <div className="col-span-1">
-              <label className="block text-sm mb-1 font-medium text-gray-700">Generic Name</label>
-              <input className="w-full border rounded-xl px-4 py-2 bg-white/80 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all shadow-sm" value={form.generic_name || ""} onChange={e => setForm((f: any) => ({ ...f, generic_name: e.target.value }))} />
-            </div>
-            <div className="col-span-1">
-              <label className="block text-sm mb-1 font-medium text-gray-700">Category</label>
-              <input className="w-full border rounded-xl px-4 py-2 bg-white/80 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all shadow-sm" value={form.category || ""} onChange={e => setForm((f: any) => ({ ...f, category: e.target.value }))} required />
-            </div>
-            <div className="col-span-1">
-              <label className="block text-sm mb-1 font-medium text-gray-700">Supplier</label>
-              <select
-                className="w-full border rounded-xl px-4 py-2 bg-white/80 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all shadow-sm"
-                value={form.supplier_id || ""}
-                onChange={e => setForm((f: any) => ({ ...f, supplier_id: e.target.value ? Number(e.target.value) : null }))}
-                required
-              >
-                <option value="">Select supplier</option>
-                {suppliers.map((sup: any) => (
-                  <option key={sup.id} value={sup.id}>{sup.name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="col-span-1">
-              <label className="block text-sm mb-1 font-medium text-gray-700">Price</label>
-              <input type="number" step="0.01" className="w-full border rounded-xl px-4 py-2 bg-white/80 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all shadow-sm" value={form.price || ""} onChange={e => setForm((f: any) => ({ ...f, price: parseFloat(e.target.value) }))} required />
-            </div>
-            <div className="col-span-1">
-              <label className="block text-sm mb-1 font-medium text-gray-700">Original Price</label>
-              <input type="number" step="0.01" className="w-full border rounded-xl px-4 py-2 bg-white/80 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all shadow-sm" value={form.original_price || ""} onChange={e => setForm((f: any) => ({ ...f, original_price: parseFloat(e.target.value) }))} />
-            </div>
-            <div className="col-span-1">
-              <label className="block text-sm mb-1 font-medium text-gray-700">Prescription Required</label>
-              <select className="w-full border rounded-xl px-4 py-2 bg-white/80 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all shadow-sm" value={form.prescription_required ? "true" : "false"} onChange={e => setForm((f: any) => ({ ...f, prescription_required: e.target.value === "true" }))}>
-                <option value="false">No</option>
-                <option value="true">Yes</option>
-              </select>
-            </div>
-            <div className="col-span-1">
-              <label className="block text-sm mb-1 font-medium text-gray-700">In Stock</label>
-              <select className="w-full border rounded-xl px-4 py-2 bg-white/80 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all shadow-sm" value={form.in_stock ? "true" : "false"} onChange={e => setForm((f: any) => ({ ...f, in_stock: e.target.value === "true" }))}>
-                <option value="true">Yes</option>
-                <option value="false">No</option>
-              </select>
-            </div>
-            <div className="col-span-1">
-              <label className="block text-sm mb-1 font-medium text-gray-700">Manufacturer</label>
-              <input className="w-full border rounded-xl px-4 py-2 bg-white/80 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all shadow-sm" value={form.manufacturer || ""} onChange={e => setForm((f: any) => ({ ...f, manufacturer: e.target.value }))} />
-            </div>
-            <div className="col-span-1">
-              <label className="block text-sm mb-1 font-medium text-gray-700">Pack Size</label>
-              <input className="w-full border rounded-xl px-4 py-2 bg-white/80 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all shadow-sm" value={form.pack_size || ""} onChange={e => setForm((f: any) => ({ ...f, pack_size: e.target.value }))} />
-            </div>
-            <div className="col-span-1">
-              <label className="block text-sm mb-1 font-medium text-gray-700">Strength</label>
-              <input className="w-full border rounded-xl px-4 py-2 bg-white/80 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all shadow-sm" value={form.strength || ""} onChange={e => setForm((f: any) => ({ ...f, strength: e.target.value }))} />
-            </div>
-            <div className="col-span-2 mb-2">
-              <h3 className="text-lg font-semibold text-gray-800 mb-2 tracking-wide border-b border-gray-100 pb-2 mt-4">Details</h3>
-            </div>
-            <div className="col-span-2">
-              <label className="block text-sm mb-1 font-medium text-gray-700">Description</label>
-              <textarea className="w-full border rounded-xl px-4 py-2 min-h-[60px] bg-white/80 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all shadow-sm" value={form.description || ""} onChange={e => setForm((f: any) => ({ ...f, description: e.target.value }))} />
-            </div>
-            <div className="col-span-1">
-              <label className="block text-sm mb-1 font-medium text-gray-700">Mechanism of Action</label>
-              <input className="w-full border rounded-xl px-4 py-2 bg-white/80 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all shadow-sm" value={form.mechanism_of_action || ""} onChange={e => setForm((f: any) => ({ ...f, mechanism_of_action: e.target.value }))} />
-            </div>
-            <div className="col-span-1">
-              <label className="block text-sm mb-1 font-medium text-gray-700">Indications</label>
-              <input className="w-full border rounded-xl px-4 py-2 bg-white/80 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all shadow-sm" value={form.indications || ""} onChange={e => setForm((f: any) => ({ ...f, indications: e.target.value }))} />
-            </div>
-            <div className="col-span-1">
-              <label className="block text-sm mb-1 font-medium text-gray-700">Warranty</label>
-              <input className="w-full border rounded-xl px-4 py-2 bg-white/80 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all shadow-sm" value={form.warranty || ""} onChange={e => setForm((f: any) => ({ ...f, warranty: e.target.value }))} />
-            </div>
-            <div className="col-span-1">
-              <label className="block text-sm mb-1 font-medium text-gray-700">Storage</label>
-              <input className="w-full border rounded-xl px-4 py-2 bg-white/80 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all shadow-sm" value={form.storage || ""} onChange={e => setForm((f: any) => ({ ...f, storage: e.target.value }))} />
-            </div>
-            <div className="col-span-1">
-              <label className="block text-sm mb-1 font-medium text-gray-700">Pregnancy Category</label>
-              <input className="w-full border rounded-xl px-4 py-2 bg-white/80 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all shadow-sm" value={form.pregnancy_category || ""} onChange={e => setForm((f: any) => ({ ...f, pregnancy_category: e.target.value }))} />
-            </div>
-            <div className="col-span-1">
-              <label className="block text-sm mb-1 font-medium text-gray-700">Lactation</label>
-              <input className="w-full border rounded-xl px-4 py-2 bg-white/80 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all shadow-sm" value={form.lactation || ""} onChange={e => setForm((f: any) => ({ ...f, lactation: e.target.value }))} />
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 p-10 pb-0">
+              {/* Image Upload Section + Key Info */}
+              <div className="flex flex-col items-center lg:items-start lg:col-span-1 w-full">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Product Image</label>
+                <div className="w-48 h-48 rounded-xl border border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden mb-3">
+                  {imagePreview ? (
+                    <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-gray-300 text-xs">No image</span>
+                  )}
+                </div>
+                <input
+                  type="file"
+                  accept="image/png"
+                  ref={imageFileRef}
+                  className="block w-full text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200 mb-4"
+                  onChange={() => {
+                    if (imageFileRef.current && imageFileRef.current.files && imageFileRef.current.files[0]) {
+                      const file = imageFileRef.current.files[0]
+                      const reader = new FileReader()
+                      reader.onload = (e) => {
+                        setImagePreview(e.target?.result as string)
+                      }
+                      reader.readAsDataURL(file)
+                    } else {
+                      setImagePreview(null)
+                    }
+                  }}
+                />
+                {/* Key Info Fields under image */}
+                <div className="w-full mt-2 space-y-2">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Name</label>
+                    <input className="w-full border border-gray-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-400 text-sm" value={form.name || ""} onChange={e => setForm((f: any) => ({ ...f, name: e.target.value }))} required />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Generic Name</label>
+                    <input className="w-full border border-gray-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-400 text-sm" value={form.generic_name || ""} onChange={e => setForm((f: any) => ({ ...f, generic_name: e.target.value }))} />
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Category</label>
+                      <input className="w-full border border-gray-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-400 text-sm" value={form.category || ""} onChange={e => setForm((f: any) => ({ ...f, category: e.target.value }))} required />
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Manufacturer</label>
+                      <input className="w-full border border-gray-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-400 text-sm" value={form.manufacturer || ""} onChange={e => setForm((f: any) => ({ ...f, manufacturer: e.target.value }))} />
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Price</label>
+                      <input type="number" step="0.01" className="w-full border border-gray-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-400 text-sm" value={form.price || ""} onChange={e => setForm((f: any) => ({ ...f, price: parseFloat(e.target.value) }))} required />
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Original Price</label>
+                      <input type="number" step="0.01" className="w-full border border-gray-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-400 text-sm" value={form.original_price || ""} onChange={e => setForm((f: any) => ({ ...f, original_price: parseFloat(e.target.value) }))} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              {/* Product Form Section */}
+              <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* The rest of the form fields, as before, minus the ones now under the image */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Supplier</label>
+                  <select
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-400 text-sm"
+                    value={form.supplier_id || ""}
+                    onChange={e => setForm((f: any) => ({ ...f, supplier_id: e.target.value ? Number(e.target.value) : null }))}
+                    required
+                  >
+                    <option value="">Select supplier</option>
+                    {suppliers.map((sup: any) => (
+                      <option key={sup.id} value={sup.id}>{sup.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Prescription Required</label>
+                  <select className="w-full border border-gray-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-400 text-sm" value={form.prescription_required ? "true" : "false"} onChange={e => setForm((f: any) => ({ ...f, prescription_required: e.target.value === "true" }))}>
+                    <option value="false">No</option>
+                    <option value="true">Yes</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">In Stock</label>
+                  <select className="w-full border border-gray-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-400 text-sm" value={form.in_stock ? "true" : "false"} onChange={e => setForm((f: any) => ({ ...f, in_stock: e.target.value === "true" }))}>
+                    <option value="true">Yes</option>
+                    <option value="false">No</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Pack Size</label>
+                  <input className="w-full border border-gray-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-400 text-sm" value={form.pack_size || ""} onChange={e => setForm((f: any) => ({ ...f, pack_size: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Strength</label>
+                  <input className="w-full border border-gray-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-400 text-sm" value={form.strength || ""} onChange={e => setForm((f: any) => ({ ...f, strength: e.target.value }))} />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Description</label>
+                  <textarea className="w-full border border-gray-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-400 text-sm min-h-[48px]" value={form.description || ""} onChange={e => setForm((f: any) => ({ ...f, description: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Mechanism of Action</label>
+                  <input className="w-full border border-gray-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-400 text-sm" value={form.mechanism_of_action || ""} onChange={e => setForm((f: any) => ({ ...f, mechanism_of_action: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Indications</label>
+                  <input className="w-full border border-gray-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-400 text-sm" value={form.indications || ""} onChange={e => setForm((f: any) => ({ ...f, indications: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Warranty</label>
+                  <input className="w-full border border-gray-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-400 text-sm" value={form.warranty || ""} onChange={e => setForm((f: any) => ({ ...f, warranty: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Storage</label>
+                  <input className="w-full border border-gray-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-400 text-sm" value={form.storage || ""} onChange={e => setForm((f: any) => ({ ...f, storage: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Pregnancy Category</label>
+                  <input className="w-full border border-gray-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-400 text-sm" value={form.pregnancy_category || ""} onChange={e => setForm((f: any) => ({ ...f, pregnancy_category: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Lactation</label>
+                  <input className="w-full border border-gray-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-400 text-sm" value={form.lactation || ""} onChange={e => setForm((f: any) => ({ ...f, lactation: e.target.value }))} />
+                </div>
+              </div>
             </div>
             {/* Sticky footer for actions */}
-            <DialogFooter className="col-span-2 flex justify-end gap-4 mt-4 sticky bottom-0 bg-gradient-to-t from-white/90 to-transparent pt-6 pb-2 z-10 border-t border-gray-100 px-8">
-              <button type="submit" className="px-8 py-3 bg-gray-900 text-white rounded-full text-lg font-semibold shadow hover:bg-gray-800 transition-colors" disabled={saving}>{saving ? "Saving..." : "Save"}</button>
+            <div className="flex justify-end gap-3 border-t border-gray-100 bg-white/95 px-8 py-4 sticky bottom-0 z-10">
+              <button type="submit" className="px-6 py-2 bg-gray-900 text-white rounded-full text-base font-medium shadow hover:bg-gray-800 transition-colors" disabled={saving}>{saving ? "Saving..." : "Save"}</button>
               <DialogClose asChild>
-                <button type="button" className="px-8 py-3 border rounded-full text-lg font-semibold">Cancel</button>
+                <button type="button" className="px-6 py-2 border rounded-full text-base font-medium">Cancel</button>
               </DialogClose>
-            </DialogFooter>
-            {error && <div className="text-red-500 text-sm mt-2 col-span-2 text-center">{error}</div>}
+            </div>
+            {error && <div className="text-red-500 text-sm mt-2 text-center px-8 pb-2">{error}</div>}
           </form>
         </DialogContent>
       </Dialog>
