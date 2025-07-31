@@ -38,6 +38,9 @@ CREATE TABLE IF NOT EXISTS prescriptions (
   approved_at TIMESTAMP WITH TIME ZONE,
   rejection_reason TEXT,
   expiry_date DATE,
+  selected_products INTEGER[], -- Array of product IDs this prescription is for
+  patient_info JSONB, -- Store patient information
+  consultation_requested BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()) NOT NULL
 );
 
@@ -655,3 +658,8 @@ $$ LANGUAGE plpgsql;
 
 -- Add current_branch_id to profiles for user branch selection
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS current_branch_id INTEGER REFERENCES branches(id);
+
+-- Modify prescriptions table to support product-specific prescriptions
+ALTER TABLE prescriptions ADD COLUMN IF NOT EXISTS selected_products INTEGER[];
+ALTER TABLE prescriptions ADD COLUMN IF NOT EXISTS patient_info JSONB;
+ALTER TABLE prescriptions ADD COLUMN IF NOT EXISTS consultation_requested BOOLEAN DEFAULT FALSE;

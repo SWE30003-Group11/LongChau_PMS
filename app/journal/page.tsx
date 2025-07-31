@@ -80,15 +80,37 @@ const categories = ["All", "Medication Safety", "Chronic Care", "Prevention", "W
 export default function HealthTipsPage() {
   const [activeCategory, setActiveCategory] = useState("All")
 
-  // Convert articles object to array and find featured article
+  // Convert articles object to array
   const articlesArray = Object.values(healthArticles)
-  const featuredArticle = articlesArray.find(article => 'featured' in article && article.featured)
-  const regularArticles = articlesArray.filter(article => !("featured" in article && article.featured))
+  
+  // Get featured article based on selected category
+  const getFeaturedArticle = () => {
+    if (activeCategory === "All") {
+      // Show the original featured article for "All" category
+      return articlesArray.find(article => 'featured' in article && article.featured)
+    } else {
+      // Show the first article from the selected category as featured
+      const categoryArticles = articlesArray.filter(article => article.category === activeCategory)
+      return categoryArticles.length > 0 ? categoryArticles[0] : null
+    }
+  }
+  
+  const featuredArticle = getFeaturedArticle()
+  
+  // Filter out the featured article from the regular articles to avoid duplication
+  const regularArticles = articlesArray.filter(article => {
+    // Exclude the original featured article when "All" is selected
+    if (activeCategory === "All") {
+      return !("featured" in article && article.featured)
+    } else {
+      // Exclude the article that's currently being shown as featured
+      return article.id !== featuredArticle?.id
+    }
+  })
 
-  const filteredArticles =
-    activeCategory === "All" 
-      ? regularArticles 
-      : regularArticles.filter((article) => article.category === activeCategory)
+  const filteredArticles = regularArticles.filter(article => 
+    activeCategory === "All" || article.category === activeCategory
+  )
 
   return (
     <div className="min-h-screen pt-24 pb-20 bg-white">
@@ -138,7 +160,9 @@ export default function HealthTipsPage() {
                 </div>
                 <div>
                   <div className="flex items-center space-x-3 text-gray-500 mb-4">
-                    <span className="text-sm uppercase tracking-wider">{featuredArticle.category}</span>
+                    <span className="text-sm uppercase tracking-wider">
+                      {activeCategory === "All" ? "FEATURED" : activeCategory}
+                    </span>
                     <span className="w-1 h-1 rounded-full bg-gray-400"></span>
                     <span className="text-sm">{featuredArticle.readTime}</span>
                   </div>

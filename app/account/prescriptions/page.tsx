@@ -235,91 +235,13 @@ export default function PrescriptionsPage() {
                 <h1 className="text-3xl font-light mb-2">My Prescriptions</h1>
                 <p className="text-gray-600">Upload and manage your prescription documents</p>
               </div>
-              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button className="rounded-full">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Upload Prescription
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Upload New Prescription</DialogTitle>
-                    <DialogDescription>
-                      Upload a clear photo or scan of your prescription. Accepted formats: JPEG, PNG, PDF (max 5MB)
-                    </DialogDescription>
-                  </DialogHeader>
-                  
-                  <div className="space-y-4 mt-4">
-                    {uploadError && (
-                      <Alert className="border-red-200 bg-red-50">
-                        <AlertCircle className="h-4 w-4" />
-                        <AlertDescription className="text-red-800">
-                          {uploadError}
-                        </AlertDescription>
-                      </Alert>
-                    )}
-
-                    {uploadSuccess && (
-                      <Alert className="border-green-200 bg-green-50">
-                        <CheckCircle className="h-4 w-4" />
-                        <AlertDescription className="text-green-800">
-                          {uploadSuccess}
-                        </AlertDescription>
-                      </Alert>
-                    )}
-
-                    <div className="space-y-2">
-                      <Label htmlFor="prescription-file">Select File</Label>
-                      <Input
-                        id="prescription-file"
-                        type="file"
-                        accept="image/*,.pdf"
-                        onChange={handleFileSelect}
-                        className="cursor-pointer"
-                      />
-                    </div>
-
-                    {selectedFile && (
-                      <div className="p-4 border rounded-lg bg-gray-50">
-                        <p className="text-sm font-medium">{selectedFile.name}</p>
-                        <p className="text-xs text-gray-500">
-                          {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-                        </p>
-                      </div>
-                    )}
-
-                    <div className="flex justify-end space-x-4">
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          setIsDialogOpen(false)
-                          setSelectedFile(null)
-                          setUploadError("")
-                        }}
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        onClick={handleUpload}
-                        disabled={!selectedFile || uploading}
-                      >
-                        {uploading ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Uploading...
-                          </>
-                        ) : (
-                          <>
-                            <Upload className="mr-2 h-4 w-4" />
-                            Upload
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-                </DialogContent>
-              </Dialog>
+              <Button 
+                className="rounded-full"
+                onClick={() => router.push('/prescriptions')}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Upload Prescription
+              </Button>
             </div>
           </div>
 
@@ -332,14 +254,13 @@ export default function PrescriptionsPage() {
                 <p className="text-gray-500 mb-6">
                   Upload your prescriptions to order medicines online
                 </p>
-                <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button className="rounded-full">
-                      <Upload className="mr-2 h-4 w-4" />
-                      Upload Your First Prescription
-                    </Button>
-                  </DialogTrigger>
-                </Dialog>
+                <Button 
+                  className="rounded-full"
+                  onClick={() => router.push('/prescriptions')}
+                >
+                  <Upload className="mr-2 h-4 w-4" />
+                  Upload Your First Prescription
+                </Button>
               </CardContent>
             </Card>
           ) : (
