@@ -30,28 +30,15 @@ interface UploadedFile {
 interface PrescriptionProduct {
   id: number
   name: string
-  dosage: string
-  quantity: number
-  prescriptionRequired: true
+  generic_name: string
+  price: number
+  pack_size: string
+  strength: string
+  description: string
+  prescription_required: boolean
+  in_stock: boolean
+  manufacturer: string
 }
-
-// Mock products that require prescription
-const prescriptionProducts: PrescriptionProduct[] = [
-  {
-    id: 2,
-    name: "Amoxicillin 500mg",
-    dosage: "500mg x 3 times daily",
-    quantity: 1,
-    prescriptionRequired: true
-  },
-  {
-    id: 4,
-    name: "Omeprazole 20mg",
-    dosage: "20mg once daily",
-    quantity: 1,
-    prescriptionRequired: true
-  }
-]
 
 export default function PrescriptionUploadPage() {
   const { addNotification } = useNotification();
@@ -59,6 +46,8 @@ export default function PrescriptionUploadPage() {
   const [isUploading, setIsUploading] = useState(false)
   const [selectedProducts, setSelectedProducts] = useState<number[]>([])
   const [prescriptionType, setPrescriptionType] = useState<"new" | "existing">("new")
+  const [prescriptionProducts, setPrescriptionProducts] = useState<PrescriptionProduct[]>([])
+  const [loadingProducts, setLoadingProducts] = useState(true)
   const [patientInfo, setPatientInfo] = useState({
     fullName: "",
     dateOfBirth: "",
@@ -72,9 +61,37 @@ export default function PrescriptionUploadPage() {
   const [dragActive, setDragActive] = useState(false)
   const { user, profile, loading } = useAuth();
 
+  // Fetch prescription-required products
+  useEffect(() => {
+    const fetchPrescriptionProducts = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('products')
+          .select('*')
+          .eq('prescription_required', true)
+          .order('name')
+        
+        if (error) throw error
+        setPrescriptionProducts(data || [])
+      } catch (error) {
+        console.error('Error fetching prescription products:', error)
+        addNotification({
+          title: 'Error',
+          message: 'Failed to load prescription products',
+          type: 'error'
+        });
+      } finally {
+        setLoadingProducts(false)
+      }
+    }
+
+    fetchPrescriptionProducts()
+  }, [addNotification]);
+
   // Robust auto-fill: only fill fields that are empty
   useEffect(() => {
     if (profile) {
+      console.log('Auto-filling patient info from profile:', profile);
       setPatientInfo((prev) => ({
         fullName: prev.fullName || profile.full_name || "",
         dateOfBirth: prev.dateOfBirth || profile.date_of_birth || "",
@@ -86,6 +103,22 @@ export default function PrescriptionUploadPage() {
       }));
     }
   }, [profile]);
+
+  // Force auto-fill when profile loads (in case user was already logged in)
+  useEffect(() => {
+    if (profile && !loading) {
+      console.log('Force auto-filling patient info from profile:', profile);
+      setPatientInfo((prev) => ({
+        fullName: prev.fullName || profile.full_name || "",
+        dateOfBirth: prev.dateOfBirth || profile.date_of_birth || "",
+        phone: prev.phone || profile.phone || "",
+        idNumber: prev.idNumber || profile.id_number || "",
+        address: prev.address || profile.address || "",
+        medicalConditions: prev.medicalConditions || profile.medical_conditions || "",
+        allergies: prev.allergies || profile.allergies || "",
+      }));
+    }
+  }, [profile, loading]);
 
   if (loading) {
     return (
@@ -124,33 +157,17 @@ export default function PrescriptionUploadPage() {
       newFiles.push(uploadedFile)
     }
     setUploadedFiles(prev => [...prev, ...newFiles])
-    // Upload to Supabase Storage
-    for (const uploadedFile of newFiles) {
-      try {
-        const filePath = `${user.id}/${Date.now()}-${uploadedFile.file.name}`
-        const { data, error } = await supabase.storage.from('prescriptions').upload(filePath, uploadedFile.file, {
-          cacheControl: '3600',
-          upsert: false
-        })
-        if (error) throw error
-        // Get public URL
-        const { data: urlData } = supabase.storage.from('prescriptions').getPublicUrl(filePath)
-        // Insert into prescriptions table
-        await supabase.from('prescriptions').insert({
-          user_id: user.id,
-          file_url: urlData.publicUrl,
-          file_name: uploadedFile.file.name,
-        })
-        setUploadedFiles(prev => prev.map(f => f.id === uploadedFile.id ? { ...f, status: "pending" } : f))
-      } catch (err) {
-        setUploadedFiles(prev => prev.map(f => f.id === uploadedFile.id ? { ...f, status: "rejected", rejectionReason: (err as Error).message } : f))
-      }
-    }
+    
+    // Just mark files as pending - don't upload to storage yet
+    setUploadedFiles(prev => prev.map(f => 
+      newFiles.some(nf => nf.id === f.id) ? { ...f, status: "pending" } : f
+    ))
+    
     setIsUploading(false)
 
     addNotification({
-      title: 'Prescription Uploaded',
-      message: 'Your prescription has been uploaded and will be reviewed by our pharmacists.',
+      title: 'Files Added',
+      message: 'Files have been added. Click Submit to upload your prescription.',
       type: 'success'
     });
   }
@@ -207,28 +224,78 @@ export default function PrescriptionUploadPage() {
       return
     }
 
-    // Simulate submission
+    if (selectedProducts.length === 0) {
+      addNotification({
+        title: 'Product Selection Required',
+        message: 'Please select at least one product for this prescription',
+        type: 'warning'
+      });
+      return
+    }
+
+    // Start submission process
     setIsUploading(true)
-    await new Promise(resolve => setTimeout(resolve, 2000))
     
-    // Simulate approval
-    setUploadedFiles(prev => 
-      prev.map(f => ({
-        ...f,
-        status: "approved" as const,
-        approvedBy: "Dr. Nguyen Van A",
-        approvedAt: new Date(),
-        expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
-      }))
-    )
-    
-    setIsUploading(false)
-    
-    addNotification({
-      title: 'Prescription Submitted',
-      message: 'Your prescription has been submitted successfully. We will review it shortly.',
-      type: 'success'
-    });
+    try {
+      // Upload files to storage and create prescriptions
+      for (const uploadedFile of uploadedFiles) {
+        const filePath = `${user?.id}/${Date.now()}-${uploadedFile.file.name}`
+        
+        // Upload file to Supabase Storage
+        const { data, error } = await supabase.storage.from('prescriptions').upload(filePath, uploadedFile.file, {
+          cacheControl: '3600',
+          upsert: false
+        })
+        if (error) throw error
+        
+        // Get public URL
+        const { data: urlData } = supabase.storage.from('prescriptions').getPublicUrl(filePath)
+        
+        // Insert prescription with selected products and patient info
+        const { data: prescriptionData, error: prescriptionError } = await supabase
+          .from('prescriptions')
+          .insert({
+            user_id: user?.id,
+            file_url: urlData.publicUrl,
+            file_name: uploadedFile.file.name,
+            selected_products: selectedProducts,
+            patient_info: patientInfo,
+            consultation_requested: consultationRequested
+          })
+          .select()
+          .single()
+        
+        if (prescriptionError) throw prescriptionError
+        
+        console.log('Prescription saved with products:', selectedProducts);
+      }
+      
+      // Simulate approval
+      setUploadedFiles(prev => 
+        prev.map(f => ({
+          ...f,
+          status: "approved" as const,
+          approvedBy: "Dr. Nguyen Van A",
+          approvedAt: new Date(),
+          expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
+        }))
+      )
+      
+      addNotification({
+        title: 'Prescription Submitted',
+        message: 'Your prescription has been submitted successfully. We will review it shortly.',
+        type: 'success'
+      });
+    } catch (error) {
+      console.error('Error submitting prescription:', error);
+      addNotification({
+        title: 'Upload Error',
+        message: 'Failed to submit prescription. Please try again.',
+        type: 'error'
+      });
+    } finally {
+      setIsUploading(false)
+    }
   }
 
   return (
@@ -490,38 +557,50 @@ export default function PrescriptionUploadPage() {
               </div>
             </div>
 
-            {/* Products Selection */}
+                        {/* Products Selection */}
             <div className="bg-white rounded-xl p-6 shadow-sm">
               <h2 className="text-xl font-medium mb-4">Select Products (Optional)</h2>
               <p className="text-sm text-gray-600 mb-4">
                 Select the products you want to purchase with this prescription
               </p>
               
-              <div className="space-y-3">
-                {prescriptionProducts.map((product) => (
-                  <label
-                    key={product.id}
-                    className="flex items-center gap-3 p-4 border rounded-lg cursor-pointer hover:bg-gray-50"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedProducts.includes(product.id)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedProducts([...selectedProducts, product.id])
-                        } else {
-                          setSelectedProducts(selectedProducts.filter(id => id !== product.id))
-                        }
-                      }}
-                      className="rounded"
-                    />
-                    <div className="flex-1">
-                      <p className="font-medium">{product.name}</p>
-                      <p className="text-sm text-gray-600">{product.dosage}</p>
-                    </div>
-                  </label>
-                ))}
-              </div>
+              {loadingProducts ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-gray-600" />
+                  <span className="ml-2 text-gray-600">Loading prescription products...</span>
+                </div>
+              ) : prescriptionProducts.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <p>No prescription products available at the moment.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {prescriptionProducts.map((product) => (
+                    <label
+                      key={product.id}
+                      className="flex items-center gap-3 p-4 border rounded-lg cursor-pointer hover:bg-gray-50"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedProducts.includes(product.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedProducts([...selectedProducts, product.id])
+                          } else {
+                            setSelectedProducts(selectedProducts.filter(id => id !== product.id))
+                          }
+                        }}
+                        className="rounded"
+                      />
+                      <div className="flex-1">
+                        <p className="font-medium">{product.name}</p>
+                        <p className="text-sm text-gray-600">{product.strength} • {product.pack_size}</p>
+                        <p className="text-xs text-gray-500">{product.manufacturer}</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Consultation Option */}

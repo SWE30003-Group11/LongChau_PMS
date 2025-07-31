@@ -12,6 +12,7 @@ import { supabase } from "@/lib/supabase/client"
 import { useAuth } from "@/contexts/AuthContext"
 import { useNotification } from "@/contexts/NotificationContext"
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip"
+import { usePrescription } from "@/hooks/use-prescription"
 
 // Helper to map branch_id to branch name
 const branchIdToName: Record<number, string> = {
@@ -80,6 +81,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
   const { addToCart } = useCart()
   const { addNotification } = useNotification()
   const { user } = useAuth()
+  const { hasPrescription, isApproved, isLoading: prescriptionLoading } = usePrescription(productId)
   const [isFavorite, setIsFavorite] = useState(false)
   const [favoriteId, setFavoriteId] = useState<string | null>(null)
   const [favoriteLoading, setFavoriteLoading] = useState(false)
@@ -173,6 +175,37 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
 
   const handleAddToCart = () => {
     if (!product) return
+    
+    if (prescriptionRequired) {
+      if (!user) {
+        addNotification({
+          title: 'Login Required',
+          message: 'Please log in to purchase prescription medications',
+          type: 'warning',
+        })
+        return
+      }
+      
+      if (!hasPrescription) {
+        addNotification({
+          title: 'Prescription Required',
+          message: 'Please upload your prescription first',
+          type: 'warning',
+        })
+        window.location.href = '/prescriptions'
+        return
+      }
+      
+      if (!isApproved) {
+        addNotification({
+          title: 'Prescription Pending',
+          message: 'Your prescription is being reviewed. Please wait for approval.',
+          type: 'warning',
+        })
+        return
+      }
+    }
+    
     const result = addToCart({
       id: product.id,
       name: product.name,
@@ -304,7 +337,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                     <XCircle className="h-6 w-6 text-red-600" />
                     <div>
                       <span className="font-medium text-red-900">Out of Stock</span>
-                      <p className="text-sm text-red-700">Notify me when available</p>
+                      <p className="text-sm text-red-700">Currently unavailable</p>
                     </div>
                   </div>
                 )}
@@ -361,13 +394,15 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                 <div className="flex gap-4">
                   <Button
                     onClick={handleAddToCart}
-                    disabled={!inStock}
-                    className="flex-1 rounded-full bg-gray-900 hover:bg-gray-800 text-white py-6 text-lg"
+                    disabled={!inStock || (prescriptionRequired && (!user || !hasPrescription || !isApproved))}
+                    className="rounded-full bg-gray-900 hover:bg-gray-800 text-white py-6 text-lg flex-1"
                   >
                     {prescriptionRequired ? (
                       <>
-                        <FileText className="h-5 w-5 mr-2" />
-                        Upload Prescription to Buy
+                        {!user ? "Login to Buy" :
+                         !hasPrescription ? "Upload Prescription" :
+                         !isApproved ? "Prescription Pending" :
+                         "Add to Cart"}
                       </>
                     ) : (
                       "Add to Cart"

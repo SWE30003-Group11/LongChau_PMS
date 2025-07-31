@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
 import { useAuth } from "@/contexts/AuthContext"
+import { useNotification } from "@/contexts/NotificationContext"
 import { Separator } from "@/components/ui/separator"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 
@@ -18,6 +19,7 @@ export default function Navbar() {
   const [scrolled, setScrolled] = useState(false)
   const [isLogoDropdownOpen, setIsLogoDropdownOpen] = useState(false)
   const { cart, addToCart, removeFromCart } = useCart()
+  const { addNotification } = useNotification()
   const logoDropdownRef = useRef<HTMLDivElement>(null)
   const pathname = usePathname()
   const { user, profile, signOut } = useAuth()
@@ -503,7 +505,16 @@ export default function Navbar() {
                                     <p className="text-lg mt-1">₫{item.price}</p>
                                   </div>
                                   <button
-                                    onClick={() => removeFromCart(item.id)}
+                                    onClick={() => {
+                                      const result = removeFromCart(item.id)
+                                      if (result.item) {
+                                        addNotification({
+                                          title: 'Removed from Cart',
+                                          message: `${result.item.name} has been removed from your cart`,
+                                          type: 'info'
+                                        })
+                                      }
+                                    }}
                                     className="text-gray-500 hover:text-gray-700 transition-colors"
                                   >
                                     <X className="h-5 w-5" />
@@ -514,6 +525,11 @@ export default function Navbar() {
                                     onClick={() => {
                                       if (item.quantity > 1) {
                                         addToCart({ ...item, quantity: item.quantity - 1 })
+                                        addNotification({
+                                          title: 'Cart Updated',
+                                          message: `Decreased quantity of ${item.name}`,
+                                          type: 'info'
+                                        })
                                       }
                                     }}
                                     className="p-1 px-2 hover:bg-gray-50 transition-colors"
@@ -522,7 +538,14 @@ export default function Navbar() {
                                   </button>
                                   <span className="px-4">{item.quantity}</span>
                                   <button
-                                    onClick={() => addToCart({ ...item, quantity: item.quantity + 1 })}
+                                    onClick={() => {
+                                      addToCart({ ...item, quantity: item.quantity + 1 })
+                                      addNotification({
+                                        title: 'Cart Updated',
+                                        message: `Increased quantity of ${item.name}`,
+                                        type: 'info'
+                                      })
+                                    }}
                                     className="p-1 px-2 hover:bg-gray-50 transition-colors"
                                   >
                                     <Plus className="h-4 w-4" />

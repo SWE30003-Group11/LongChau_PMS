@@ -17,6 +17,7 @@ import {
 import { supabase } from "@/lib/supabase/client"
 import { useCart } from "@/hooks/use-cart"
 import Link from "next/link"
+import { useNotification } from '@/contexts/NotificationContext'
 
 // Helper function to get product image URL from storage
 function getProductImageUrl(productName: string): string {
@@ -51,6 +52,7 @@ export default function FavoritesPage() {
   const { user } = useAuth()
   const router = useRouter()
   const { addToCart } = useCart()
+  const { addNotification } = useNotification()
   const [favorites, setFavorites] = useState<FavoriteProduct[]>([])
   const [loading, setLoading] = useState(true)
   const [removing, setRemoving] = useState<string | null>(null)
@@ -78,6 +80,13 @@ export default function FavoritesPage() {
       setFavorites(favoritesWithProduct as FavoriteProduct[])
     } catch (error) {
       console.error('Error fetching favorites:', error)
+      
+      // Add error notification
+      addNotification({
+        title: 'Error Loading Favorites',
+        message: 'We could not load your favorites. Please try again later.',
+        type: 'error'
+      })
     } finally {
       setLoading(false)
     }
@@ -93,8 +102,21 @@ export default function FavoritesPage() {
         .eq('id', favoriteId)
       if (error) throw error
       setFavorites(favorites => favorites.filter(f => f.id !== favoriteId))
+      
+      // Add notification when item is removed from favorites
+      addNotification({
+        title: 'Removed from Favorites',
+        message: `${productName} has been removed from your favorites`,
+        type: 'info'
+      })
     } catch (error) {
       console.error('Error removing favorite:', error)
+      // Add error notification
+      addNotification({
+        title: 'Error',
+        message: 'Could not remove item from favorites',
+        type: 'error'
+      })
     } finally {
       setRemoving(null)
     }
@@ -106,12 +128,19 @@ export default function FavoritesPage() {
       return
     }
     
-    addToCart({
+    const result = addToCart({
       id: product.id,
       name: product.name,
       price: product.price,
       image: getProductImageUrl(product.name),
       quantity: 1
+    })
+    
+    // Show notification after adding to cart
+    addNotification({
+      title: result.type === 'ADD' ? 'Added to Cart' : 'Cart Updated',
+      message: `${product.name} has been added to your cart`,
+      type: 'success'
     })
   }
 

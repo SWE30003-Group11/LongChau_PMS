@@ -7,7 +7,9 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { useCart } from "@/hooks/use-cart"
 import { useState, useEffect } from "react"
 import { supabase } from "@/lib/supabase/client"
-import { useNotification } from '@/contexts/NotificationContext'
+import { NotificationProvider, useNotification } from '@/contexts/NotificationContext'
+import { usePrescription } from "@/hooks/use-prescription"
+import { useAuth } from "@/contexts/AuthContext"
 
 // Helper function to get product image URL from storage
 function getProductImageUrl(productName: string, updatedAt?: string | number): string {
@@ -35,22 +37,74 @@ interface Product {
 export default function ShopPage() {
   const { addToCart } = useCart()
   const { addNotification } = useNotification()
+  const { user } = useAuth()
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
-  const [currentPage, setCurrentPage] = useState(1)
-  const [sort, setSort] = useState("featured")
-  const productsPerPage = 9
-
-  // Filter state
+  const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
   const [selectedBrands, setSelectedBrands] = useState<string[]>([])
   const [selectedPrescription, setSelectedPrescription] = useState<string[]>([])
-  const [selectedPriceRanges, setSelectedPriceRanges] = useState<string[]>([])
-  const [pendingFilters, setPendingFilters] = useState(false)
-
-  // Add dynamic options state
+  const [priceRange, setPriceRange] = useState<string[]>([])
+  const [sortBy, setSortBy] = useState("name")
+  const [currentPage, setCurrentPage] = useState(1)
   const [categoryOptions, setCategoryOptions] = useState<string[]>([])
   const [brandOptions, setBrandOptions] = useState<string[]>([])
+  const [totalProducts, setTotalProducts] = useState(0)
+  const [productPrescriptionStatus, setProductPrescriptionStatus] = useState<Record<number, { hasPrescription: boolean; isApproved: boolean }>>({})
+
+  // Get prescription status for all products at once
+  const { hasPrescription: generalHasPrescription, isApproved: generalIsApproved } = usePrescription()
+
+  // Fetch prescription status for all products
+  useEffect(() => {
+    async function fetchPrescriptionStatus() {
+      if (!user) return
+
+      try {
+        const { data: prescriptions, error } = await supabase
+          .from('prescriptions')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('status', 'approved')
+          .order('created_at', { ascending: false })
+
+        if (error) {
+          console.error('Error fetching prescriptions:', error)
+          return
+        }
+
+        // Create a map of product ID to prescription status
+        const statusMap: Record<number, { hasPrescription: boolean; isApproved: boolean }> = {}
+        
+        // For each product, check if any prescription includes it
+        products.forEach(product => {
+          const hasApprovedPrescriptionForProduct = prescriptions?.some(p => 
+            p.selected_products && 
+            p.selected_products.includes(product.id)
+          ) || false
+
+          statusMap[product.id] = {
+            hasPrescription: hasApprovedPrescriptionForProduct,
+            isApproved: hasApprovedPrescriptionForProduct
+          }
+        })
+
+        setProductPrescriptionStatus(statusMap)
+      } catch (error) {
+        console.error('Error checking prescription status:', error)
+      }
+    }
+
+    fetchPrescriptionStatus()
+  }, [user, products])
+
+  // Function to check prescription status for a specific product
+  const getPrescriptionStatus = (productId: number) => {
+    return productPrescriptionStatus[productId] || {
+      hasPrescription: false,
+      isApproved: false
+    }
+  }
 
   // Fetch filter options from DB
   useEffect(() => {
@@ -81,8 +135,8 @@ export default function ShopPage() {
       if (selectedPrescription[0] === "Prescription Required") query = query.eq("prescription_required", true)
     }
     // Price
-    if (selectedPriceRanges.length > 0) {
-      query = query.or(selectedPriceRanges.map(val => {
+    if (priceRange.length > 0) {
+      query = query.or(priceRange.map(val => {
         if (val === "under-50000") return "price.lt.50000"
         if (val === "50000-200000") return "and(price.gte.50000,price.lte.200000)"
         if (val === "above-200000") return "price.gt.200000"
@@ -90,9 +144,9 @@ export default function ShopPage() {
       }).join(","))
     }
     // Sort
-    if (sort === "price-asc") query = query.order("price", { ascending: true })
-    else if (sort === "price-desc") query = query.order("price", { ascending: false })
-    else if (sort === "name-asc") query = query.order("name", { ascending: true })
+    if (sortBy === "price-asc") query = query.order("price", { ascending: true })
+    else if (sortBy === "price-desc") query = query.order("price", { ascending: false })
+    else if (sortBy === "name-asc") query = query.order("name", { ascending: true })
     else query = query.order("id", { ascending: false })
     const { data, error } = await query
     if (!error) setProducts((data as Product[]) || [])
@@ -104,30 +158,28 @@ export default function ShopPage() {
   useEffect(() => {
     fetchProductsWithFilters()
     // eslint-disable-next-line
-  }, [sort])
+  }, [sortBy])
 
   // Handlers for checkboxes
   function handleCheckboxChange(option: string, selected: string[], setSelected: (v: string[]) => void) {
     setSelected(selected.includes(option) ? selected.filter(v => v !== option) : [...selected, option])
-    setPendingFilters(true)
   }
 
   // Handler for prescription (single select)
   function handlePrescriptionChange(option: string) {
     setSelectedPrescription(selectedPrescription.includes(option) ? [] : [option])
-    setPendingFilters(true)
   }
 
   // Handler for price range (multi-select)
   function handlePriceRangeChange(option: string) {
-    setSelectedPriceRanges(selectedPriceRanges.includes(option) ? selectedPriceRanges.filter(v => v !== option) : [...selectedPriceRanges, option])
-    setPendingFilters(true)
+    setPriceRange(priceRange.includes(option) ? priceRange.filter(v => v !== option) : [...priceRange, option])
   }
 
-  const totalPages = Math.ceil(products.length / productsPerPage)
+  // Calculate pagination
+  const totalPages = Math.ceil(products.length / 9)
   const paginatedProducts = products.slice(
-    (currentPage - 1) * productsPerPage,
-    currentPage * productsPerPage
+    (currentPage - 1) * 9,
+    currentPage * 9
   )
 
   // Replace priceRanges in the filter UI
@@ -300,7 +352,7 @@ export default function ShopPage() {
                           <input
                             type="checkbox"
                             className="rounded border-gray-300 text-gray-900 focus:ring-gray-900"
-                            checked={selectedPriceRanges.includes(range.value)}
+                            checked={priceRange.includes(range.value)}
                             onChange={() => handlePriceRangeChange(range.value)}
                           />
                           <span className="ml-2 text-sm">{range.label}</span>
@@ -314,8 +366,7 @@ export default function ShopPage() {
               {/* Filter Button */}
               <Button
                 className="w-full rounded-full mt-4"
-                onClick={() => { fetchProductsWithFilters(); setPendingFilters(false); }}
-                disabled={!pendingFilters}
+                onClick={() => { fetchProductsWithFilters(); }}
               >
                 Filter
               </Button>
@@ -329,8 +380,8 @@ export default function ShopPage() {
               <p className="text-sm text-gray-600">Showing {products.length} products</p>
               <select
                 className="border border-gray-200 rounded-full px-4 py-2 text-sm"
-                value={sort}
-                onChange={e => { setSort(e.target.value); setCurrentPage(1) }}
+                value={sortBy}
+                onChange={e => { setSortBy(e.target.value); setCurrentPage(1) }}
               >
                 <option value="featured">Sort by: Featured</option>
                 <option value="price-asc">Price: Low to High</option>
@@ -344,88 +395,132 @@ export default function ShopPage() {
               <div className="text-center py-20 text-gray-500">No products found.</div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {paginatedProducts.map((product) => (
-                  <div key={product.id} className="group h-full">
-                    <div className="bg-white border border-gray-100 rounded-lg overflow-hidden hover:shadow-md transition-shadow flex flex-col h-full">
-                      {/* Product badges */}
-                      <div className="relative">
-                        {product.original_price && (
-                          <div className="absolute top-4 left-4 z-10">
-                            <span className="inline-block bg-red-500 text-white text-xs px-3 py-1 rounded-full">
-                              -{product.original_price ? Math.round(((product.original_price - product.price) / product.original_price) * 100) : 0}%
-                            </span>
-                          </div>
-                        )}
-                        {product.prescription_required && (
-                          <div className="absolute top-4 right-4 z-10">
-                            <span className="inline-block bg-blue-500 text-white text-xs px-3 py-1 rounded-full">
-                              Rx Required
-                            </span>
-                          </div>
-                        )}
-                        <Link href={`/shop/${product.id}`}>
-                          <div className="w-full h-56 bg-gray-50 flex items-center justify-center">
-                            <img
-                              src={getProductImageUrl(product.name, product.updated_at) || "/placeholder.svg"}
-                              alt={product.name}
-                              className="w-full h-full object-cover object-center transition-transform duration-300 group-hover:scale-105"
-                            />
-                          </div>
-                        </Link>
-                      </div>
-                      <div className="flex flex-col flex-1 p-4">
-                        {product.manufacturer && <p className="text-xs text-gray-500 mb-1">{product.manufacturer}</p>}
-                        <h3 className="text-sm font-medium mb-1">{product.name}</h3>
-                        {product.generic_name && (
-                          <p className="text-xs text-gray-600 mb-3">({product.generic_name})</p>
-                        )}
-                        <div className="flex items-center justify-between mb-3 mt-auto">
-                          <div>
-                            <p className="text-lg font-medium text-gray-900">
-                              {Number(product.price).toLocaleString('vi-VN')}₫
-                            </p>
-                            {product.original_price && (
-                              <p className="text-sm text-gray-500 line-through">
-                                {Number(product.original_price).toLocaleString('vi-VN')}₫
-                              </p>
-                            )}
-                          </div>
-                          {/* Calculate total stock for each product */}
-                          {product.inventory && product.inventory.length > 0 ? (
-                            <div className="text-right">
-                              <span className="text-xs text-green-600">In Stock</span>
-                            </div>
-                          ) : (
-                            <div className="text-right">
-                              <span className="text-xs text-red-600">Out of Stock</span>
+                {paginatedProducts.map((product) => {
+                  const { hasPrescription, isApproved } = getPrescriptionStatus(product.id)
+                  
+                  return (
+                    <div key={product.id} className="group h-full">
+                      <div className="bg-white border border-gray-100 rounded-lg overflow-hidden hover:shadow-md transition-shadow flex flex-col h-full">
+                        {/* Product badges */}
+                        <div className="relative">
+                          {product.original_price && (
+                            <div className="absolute top-4 left-4 z-10">
+                              <span className="inline-block bg-red-500 text-white text-xs px-3 py-1 rounded-full">
+                                -{product.original_price ? Math.round(((product.original_price - product.price) / product.original_price) * 100) : 0}%
+                              </span>
                             </div>
                           )}
+                          {product.prescription_required && (
+                            <div className="absolute top-4 right-4 z-10">
+                              <span className="inline-block bg-blue-500 text-white text-xs px-3 py-1 rounded-full">
+                                Rx Required
+                              </span>
+                            </div>
+                          )}
+                          <Link href={`/shop/${product.id}`}>
+                            <div className="w-full h-56 bg-gray-50 flex items-center justify-center">
+                              <img
+                                src={getProductImageUrl(product.name, product.updated_at) || "/placeholder.svg"}
+                                alt={product.name}
+                                className="w-full h-full object-cover object-center transition-transform duration-300 group-hover:scale-105"
+                              />
+                            </div>
+                          </Link>
                         </div>
-                        <Button 
-                          className="w-full rounded-full text-sm mt-2"
-                          variant={product.inventory && product.inventory.length > 0 ? "default" : "outline"}
-                          disabled={!(product.inventory && product.inventory.length > 0)}
-                          onClick={() => {
-                            if (product.inventory && product.inventory.length > 0 && !product.prescription_required) {
-                              addToCart({
-                                id: product.id,
-                                name: product.name,
-                                price: product.price,
-                                image: getProductImageUrl(product.name, product.updated_at),
-                                quantity: 1,
-                                prescriptionRequired: product.prescription_required
-                              })
-                            } else if (product.prescription_required) {
-                              window.location.href = `/shop/${product.id}`
-                            }
-                          }}
-                        >
-                          {product.inventory && product.inventory.length > 0 ? (product.prescription_required ? "Upload Prescription" : "Add to Cart") : "Notify Me"}
-                        </Button>
+                        <div className="flex flex-col flex-1 p-4">
+                          {product.manufacturer && <p className="text-xs text-gray-500 mb-1">{product.manufacturer}</p>}
+                          <h3 className="text-sm font-medium mb-1">{product.name}</h3>
+                          {product.generic_name && (
+                            <p className="text-xs text-gray-600 mb-3">({product.generic_name})</p>
+                          )}
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm text-gray-600">
+                                {product.inventory && product.inventory.length > 0 ? 'In Stock' : 'Out of Stock'}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="mt-auto">
+                            <Button
+                              className="w-full rounded-full text-sm"
+                              variant={product.inventory && product.inventory.length > 0 ? "default" : "outline"}
+                              disabled={!(product.inventory && product.inventory.length > 0)}
+                              onClick={() => {
+                                if (product.prescription_required) {
+                                  if (!user) {
+                                    addNotification({
+                                      title: 'Login Required',
+                                      message: 'Please log in to purchase prescription medications',
+                                      type: 'warning',
+                                    })
+                                    return
+                                  }
+
+                                  if (!hasPrescription) {
+                                    addNotification({
+                                      title: 'Prescription Required',
+                                      message: 'Please upload your prescription first',
+                                      type: 'warning',
+                                    })
+                                    window.location.href = '/prescriptions'
+                                    return
+                                  }
+
+                                  if (!isApproved) {
+                                    addNotification({
+                                      title: 'Prescription Pending',
+                                      message: 'Your prescription is being reviewed. Please wait for approval.',
+                                      type: 'warning',
+                                    })
+                                    return
+                                  }
+
+                                  // Prescription is approved, add to cart
+                                  addToCart({
+                                    id: product.id,
+                                    name: product.name,
+                                    price: product.price,
+                                    image: getProductImageUrl(product.name, product.updated_at),
+                                    quantity: 1,
+                                    prescriptionRequired: product.prescription_required
+                                  })
+                                  addNotification({
+                                    title: 'Added to Cart',
+                                    message: `${product.name} has been added to your cart`,
+                                    type: 'success',
+                                  })
+                                } else if (product.inventory && product.inventory.length > 0) {
+                                  addToCart({
+                                    id: product.id,
+                                    name: product.name,
+                                    price: product.price,
+                                    image: getProductImageUrl(product.name, product.updated_at),
+                                    quantity: 1,
+                                    prescriptionRequired: product.prescription_required
+                                  })
+                                  addNotification({
+                                    title: 'Added to Cart',
+                                    message: `${product.name} has been added to your cart`,
+                                    type: 'success',
+                                  })
+                                }
+                              }}
+                            >
+                              {product.inventory && product.inventory.length > 0 ? (
+                                product.prescription_required ? (
+                                  !user ? "Login to Buy" :
+                                  !hasPrescription ? "Upload Prescription" :
+                                  !isApproved ? "Prescription Pending" :
+                                  "Add to Cart"
+                                ) : "Add to Cart"
+                              ) : "Out of Stock"}
+                            </Button>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
             {/* Pagination */}

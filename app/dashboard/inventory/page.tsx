@@ -665,6 +665,9 @@ export default function InventoryPage() {
       {/* Add/Edit Product Modal */}
       <Dialog open={showAddEdit} onOpenChange={setShowAddEdit}>
         <DialogContent className="max-w-4xl w-full p-0 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-y-auto" style={{ maxHeight: '90vh' }}>
+          <DialogHeader className="p-6 pb-0">
+            <DialogTitle>{editProduct ? 'Edit Product' : 'Add New Product'}</DialogTitle>
+          </DialogHeader>
           <form
             onSubmit={e => {
               e.preventDefault();

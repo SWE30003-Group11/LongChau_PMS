@@ -15,9 +15,13 @@ import { cn } from "@/lib/utils"
 import { supabase } from "@/lib/supabase/client"
 import { useEffect } from "react"
 import { useNotification } from '@/contexts/NotificationContext';
+import { usePrescription } from "@/hooks/use-prescription"
+import { useAuth } from "@/contexts/AuthContext"
 
 export default function CheckoutPage() {
   const { addNotification } = useNotification();
+  const { user: authUser } = useAuth()
+  const { hasPrescription, isApproved, isLoading: prescriptionLoading } = usePrescription()
   // Dynamic branches from Supabase
   const [branches, setBranches] = useState<any[]>([])
   useEffect(() => {
@@ -65,6 +69,24 @@ export default function CheckoutPage() {
   
   // Check if any items require prescription
   const requiresPrescription = cart.some(item => item.prescriptionRequired)
+  
+  // Validate prescription requirements for each product
+  const canProceedWithPrescription = () => {
+    if (!requiresPrescription) return true
+    if (!authUser) return false
+    
+    // Check each prescription-required product individually
+    for (const item of cart) {
+      if (item.prescriptionRequired) {
+        // For now, we'll use the general prescription check
+        // In a real implementation, you'd check if the prescription is valid for this specific product
+        if (!hasPrescription || !isApproved) {
+          return false
+        }
+      }
+    }
+    return true
+  }
   
   // Handle prescription upload
   const handlePrescriptionUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -288,13 +310,34 @@ export default function CheckoutPage() {
       return;
     }
     
-    if (requiresPrescription && !uploadedPrescription) {
-      addNotification({
-        title: 'Prescription Required',
-        message: 'Please upload prescription for prescription-required items',
-        type: 'warning'
-      });
-      return;
+    if (requiresPrescription) {
+      if (!authUser) {
+        addNotification({
+          title: 'Login Required',
+          message: 'Please log in to purchase prescription medications',
+          type: 'warning',
+        })
+        return
+      }
+      
+      if (!hasPrescription) {
+        addNotification({
+          title: 'Prescription Required',
+          message: 'Please upload your prescription first',
+          type: 'warning',
+        })
+        window.location.href = '/prescriptions'
+        return
+      }
+      
+      if (!isApproved) {
+        addNotification({
+          title: 'Prescription Pending',
+          message: 'Your prescription is being reviewed. Please wait for approval.',
+          type: 'warning',
+        })
+        return
+      }
     }
     
     // Check inventory before placing order (for pickup)
@@ -629,38 +672,50 @@ export default function CheckoutPage() {
                   </div>
                 </div>
                 
-                {/* Prescription Upload */}
+                {/* Prescription Status */}
                 {requiresPrescription && (
                   <div className="bg-white rounded-xl p-6 shadow-sm">
-                    <h2 className="text-xl font-medium mb-6">Upload Prescription</h2>
+                    <h2 className="text-xl font-medium mb-6">Prescription Status</h2>
                     
-                    <Alert className="mb-4 border-amber-200 bg-amber-50">
-                      <AlertCircle className="h-5 w-5 text-amber-600" />
-                      <AlertDescription className="text-amber-800">
-                        A valid prescription is required for some items in your order. 
-                        Our pharmacist will verify it before dispensing.
-                      </AlertDescription>
-                    </Alert>
+                    {!authUser ? (
+                      <Alert className="mb-4 border-red-200 bg-red-50">
+                        <AlertCircle className="h-5 w-5 text-red-600" />
+                        <AlertDescription className="text-red-800">
+                          Please log in to purchase prescription medications.
+                        </AlertDescription>
+                      </Alert>
+                    ) : !hasPrescription ? (
+                      <Alert className="mb-4 border-amber-200 bg-amber-50">
+                        <AlertCircle className="h-5 w-5 text-amber-600" />
+                        <AlertDescription className="text-amber-800">
+                          Please upload your prescription first before proceeding with the order.
+                        </AlertDescription>
+                      </Alert>
+                    ) : !isApproved ? (
+                      <Alert className="mb-4 border-yellow-200 bg-yellow-50">
+                        <Clock className="h-5 w-5 text-yellow-600" />
+                        <AlertDescription className="text-yellow-800">
+                          Your prescription is being reviewed. Please wait for approval before placing your order.
+                        </AlertDescription>
+                      </Alert>
+                    ) : (
+                      <Alert className="mb-4 border-green-200 bg-green-50">
+                        <CheckCircle className="h-5 w-5 text-green-600" />
+                        <AlertDescription className="text-green-800">
+                          Your prescription has been approved. You can proceed with your order.
+                        </AlertDescription>
+                      </Alert>
+                    )}
                     
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-                      <input
-                        type="file"
-                        id="prescription"
-                        accept="image/*,.pdf"
-                        onChange={handlePrescriptionUpload}
-                        className="hidden"
-                      />
-                      <label htmlFor="prescription" className="cursor-pointer">
-                        <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                        <p className="text-gray-600 mb-2">
-                          {uploadedPrescription 
-                            ? `Uploaded: ${uploadedPrescription.name}`
-                            : "Click to upload prescription"
-                          }
-                        </p>
-                        <p className="text-sm text-gray-500">Accepts JPG, PNG, PDF (Max 5MB)</p>
-                      </label>
-                    </div>
+                    {!hasPrescription && authUser && (
+                      <Button 
+                        onClick={() => window.location.href = '/prescriptions'}
+                        className="w-full rounded-full"
+                      >
+                        <Upload className="h-4 w-4 mr-2" />
+                        Upload Prescription
+                      </Button>
+                    )}
                   </div>
                 )}
                 
@@ -813,7 +868,7 @@ export default function CheckoutPage() {
                       !customerInfo.phone || 
                       (fulfillmentMethod === "pickup" && !selectedBranch) ||
                       (fulfillmentMethod === "delivery" && !customerInfo.address) ||
-                      (requiresPrescription && !uploadedPrescription)
+                      !canProceedWithPrescription()
                     }
                   >
                     Continue to Payment
