@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { motion, AnimatePresence } from "framer-motion"
 import { cn } from "@/lib/utils"
 import { supabase } from "@/lib/supabase/client"
@@ -59,6 +60,7 @@ export default function PrescriptionUploadPage() {
   })
   const [consultationRequested, setConsultationRequested] = useState(false)
   const [dragActive, setDragActive] = useState(false)
+  const [showSampleModal, setShowSampleModal] = useState(false)
   const { user, profile, loading } = useAuth();
 
   // Fetch prescription-required products
@@ -709,23 +711,75 @@ export default function PrescriptionUploadPage() {
               </div>
             </div>
 
-            {/* Sample Prescription */}
-            <div className="bg-white rounded-xl p-6 shadow-sm">
-              <h3 className="text-lg font-medium mb-4">Sample Prescription</h3>
-              <div className="bg-gray-100 rounded-lg p-4 mb-4">
-                <Image className="h-32 w-full text-gray-400" />
-              </div>
-              <p className="text-sm text-gray-600">
-                Click to view a sample of an acceptable prescription format
-              </p>
-              <Button variant="outline" className="w-full mt-3 rounded-full">
-                <Eye className="mr-2 h-4 w-4" />
-                View Sample
-              </Button>
-            </div>
+                         {/* Sample Prescription */}
+             <div className="bg-white rounded-xl p-6 shadow-sm">
+               <h3 className="text-lg font-medium mb-4">Sample Prescription</h3>
+               <div className="bg-gray-100 rounded-lg p-4 mb-4">
+                 <img 
+                   src="/prescriptions/sample.jpg" 
+                   alt="Sample prescription" 
+                   className="h-32 w-full object-cover rounded cursor-pointer hover:opacity-80 transition-opacity"
+                   onClick={() => setShowSampleModal(true)}
+                 />
+               </div>
+               <p className="text-sm text-gray-600">
+                 Click to view a sample of an acceptable prescription format
+               </p>
+               <Button 
+                 variant="outline" 
+                 className="w-full mt-3 rounded-full"
+                 onClick={() => setShowSampleModal(true)}
+               >
+                 <Eye className="mr-2 h-4 w-4" />
+                 View Sample
+               </Button>
+             </div>
           </div>
-        </div>
-      </div>
-    </div>
-  )
-}
+                 </div>
+       </div>
+
+       {/* Sample Prescription Modal */}
+       <Dialog open={showSampleModal} onOpenChange={setShowSampleModal}>
+         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+           <DialogHeader>
+             <DialogTitle className="text-xl font-medium">Sample Prescription</DialogTitle>
+           </DialogHeader>
+           <div className="space-y-4">
+             <div className="bg-gray-50 rounded-lg p-6">
+               <img 
+                 src="/prescriptions/sample.jpg" 
+                 alt="Sample prescription" 
+                 className="w-full h-auto max-h-[70vh] object-contain rounded-lg shadow-lg"
+               />
+             </div>
+             <div className="space-y-3">
+               <h4 className="font-medium text-lg">What to Look For:</h4>
+               <ul className="space-y-2 text-sm text-gray-600">
+                 <li className="flex items-start gap-2">
+                   <Check className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                   <span>Clear doctor's signature and stamp</span>
+                 </li>
+                 <li className="flex items-start gap-2">
+                   <Check className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                   <span>Patient name and date of birth</span>
+                 </li>
+                 <li className="flex items-start gap-2">
+                   <Check className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                   <span>Medication name, dosage, and instructions</span>
+                 </li>
+                 <li className="flex items-start gap-2">
+                   <Check className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                   <span>Date of prescription (within 30 days)</span>
+                 </li>
+                 <li className="flex items-start gap-2">
+                   <Check className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                   <span>Clear, readable text without alterations</span>
+                 </li>
+               </ul>
+             </div>
+           </div>
+         </DialogContent>
+       </Dialog>
+     </div>
+   )
+ }

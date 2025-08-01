@@ -433,6 +433,30 @@ export default function ShopPage() {
                           {product.generic_name && (
                             <p className="text-xs text-gray-600 mb-3">({product.generic_name})</p>
                           )}
+                          
+                          {/* Price and Discount Display */}
+                          <div className="mb-3">
+                            <div className="flex items-center gap-2">
+                              {product.original_price && product.original_price > product.price ? (
+                                <>
+                                  <span className="text-lg font-semibold text-gray-900">
+                                    {product.price.toLocaleString('vi-VN')}₫
+                                  </span>
+                                  <span className="text-sm text-gray-500 line-through">
+                                    {product.original_price.toLocaleString('vi-VN')}₫
+                                  </span>
+                                  <span className="text-xs bg-red-100 text-red-600 px-2 py-1 rounded-full">
+                                    -{Math.round(((product.original_price - product.price) / product.original_price) * 100)}%
+                                  </span>
+                                </>
+                              ) : (
+                                <span className="text-lg font-semibold text-gray-900">
+                                  {product.price.toLocaleString('vi-VN')}₫
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-2">
                               <span className="text-sm text-gray-600">
