@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import { Inter, Playfair_Display } from "next/font/google"
 import "./globals.css"
-import { ClientLayout } from "./client-layout.tsx"
+import { ClientLayout } from "./client-layout"
 
 const inter = Inter({
   subsets: ["latin"],

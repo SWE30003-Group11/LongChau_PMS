@@ -116,23 +116,23 @@ export default function InventoryPage() {
   function openAddProduct() {
     setEditProduct(null)
     setForm({
-      name: "Glucosamine 1500mg",
-      generic_name: "Glucosamine Sulfate",
-      category: "Joint Health",
-      price: 180000,
-      original_price: 220000,
-      prescription_required: false,
+      name: "Atorvastatin 20mg",
+      generic_name: "Atorvastatin Calcium",
+      category: "Cardiovascular",
+      price: 85000,
+      original_price: 95000,
+      prescription_required: true,
       in_stock: true,
-      manufacturer: "Nature's Way",
-      pack_size: "Box of 60 tablets",
-      strength: "1500mg",
-      description: "Glucosamine supports joint health and mobility, helping to relieve symptoms of mild osteoarthritis.",
-      mechanism_of_action: "Supports cartilage formation and joint lubrication.",
-      indications: "Joint pain, mild osteoarthritis, cartilage support",
+      manufacturer: "Pfizer",
+      pack_size: "Box of 30 tablets",
+      strength: "20mg",
+      description: "Atorvastatin is used to lower cholesterol and reduce the risk of heart disease. It belongs to a group of drugs known as statins.",
+      mechanism_of_action: "Inhibits HMG-CoA reductase, reducing cholesterol synthesis in the liver.",
+      indications: "High cholesterol, cardiovascular disease prevention, dyslipidemia",
       warranty: "2 years",
-      storage: "Store in a cool, dry place.",
-      pregnancy_category: "C",
-      lactation: "Consult a doctor",
+      storage: "Store below 25°C in a dry place, away from light.",
+      pregnancy_category: "X",
+      lactation: "Not recommended during breastfeeding",
       supplier_id: 1
     })
     setShowAddEdit(true)
